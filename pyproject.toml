@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autopoiesis"
+version = "0.1.0"
+description = "Digital Autopoiesis: Self-Evolving & Self-Mutating Codebase Engine with Apoptotic Immunity"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Autopoiesis Research Team", email = "research@autopoiesis.engine" }
+]
+dependencies = [
+    "rich>=13.0.0",
+    "psutil>=5.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+    "matplotlib>=3.7.0",
+]
+
+[project.scripts]
+autopoiesis = "autopoiesis.cli:main"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
