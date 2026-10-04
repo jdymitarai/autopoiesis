@@ -5,7 +5,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-32%2F32%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-34%2F34%20passed-brightgreen.svg)]()
 [![Empirical Speedup](https://img.shields.io/badge/empirical%20speedup-14.02x-success.svg)]()
 
 ---
@@ -246,6 +246,31 @@ autopoiesis import-genome -w mandelbrot -i genomes/mandelbrot_@your_handle.json
 
 ---
 
+## 🔌 Hooking into Any AI Agent (Universal MCP Server)
+
+Autopoiesis can be mounted into **any AI Agent, IDE, or Coding Assistant** (Cursor, Claude Desktop, Antigravity, Windsurf, Cline, Roo Code) via the **Model Context Protocol (MCP)**:
+
+```json
+{
+  "mcpServers": {
+    "autopoiesis": {
+      "command": "python",
+      "args": ["-m", "autopoiesis.mcp_server"]
+    }
+  }
+}
+```
+
+Detailed guide: **[Read AGENT_INTEGRATION.md](./AGENT_INTEGRATION.md)**
+
+Once connected, your AI assistant can autonomously invoke:
+- `autopoiesis_evolve`: Auto-synthesize and hot-swap 10x faster C/Rust algorithms with zero crashes.
+- `autopoiesis_export_genome`: Export local champion chromosomes for community PR submission.
+- `autopoiesis_import_genome`: Import and verify foreign genomes through the local Apoptotic Gate.
+- `autopoiesis_security_audit`: Static zero-trust security audit of community genomes.
+
+---
+
 ## 📁 Repository Structure
 
 ```
@@ -253,6 +278,7 @@ autopoiesis/
 ├── autopoiesis/
 │   ├── __init__.py               # Top-level API exports
 │   ├── cli.py                    # Command-line interface (evolve, export-genome, import-genome)
+│   ├── mcp_server.py             # Universal Model Context Protocol (MCP) server
 │   ├── core/
 │   │   ├── __init__.py
 │   │   ├── apoptosis.py          # Deterministic immune gate & verification
@@ -286,6 +312,7 @@ autopoiesis/
 │   └── run_colab_trial.py        # Colab empirical trial runner script
 ├── tests/                        # Comprehensive test suite (100% pass)
 ├── pyproject.toml                # Packaging & dependencies
+├── AGENT_INTEGRATION.md          # Universal AI Agent & MCP mounting guide
 ├── BREEDING.md                   # Global distributed breeding protocol guide
 ├── SECURITY.md                   # Zero-trust security policy & threat model
 └── README.md                     # Architecture specification & documentation

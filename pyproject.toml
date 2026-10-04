@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "autopoiesis"
-version = "0.1.1"
+version = "0.1.2"
 description = "Digital Autopoiesis: Self-Evolving & Self-Mutating Codebase Engine with Apoptotic Immunity"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -26,6 +26,7 @@ dev = [
 
 [project.scripts]
 autopoiesis = "autopoiesis.cli:main"
+autopoiesis-mcp = "autopoiesis.mcp_server:run_mcp_server"
 
 [tool.setuptools.packages.find]
 include = ["autopoiesis*"]
