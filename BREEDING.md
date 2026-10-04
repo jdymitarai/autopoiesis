@@ -116,6 +116,14 @@ git commit -m "breed: contribute @your_handle mandelbrot genome"
 git push origin breed-mandelbrot-@your_handle
 ```
 
+> 🤖 **Autonomous 24/7 Auto-Breeder Bot Active**:
+> As soon as your Pull Request is opened, our cloud **Auto-Breeder Bot** triggers automatically:
+> 1. It audits your chromosome against the Zero-Trust Security Policy (Phase 0).
+> 2. It tests your candidate inside the Isolated Subprocess Sandbox across edge vectors (Phase 1).
+> 3. It measures latency reduction on hardware timers through the Apoptotic Gate (Phase 2).
+> 
+> If your genome is certified, the bot will post a verification report and **automatically merge your PR into `main` without waiting for manual maintainer approval**! Your name is instantly immortalized in the species tree.
+
 ---
 
 ## 🛡️ Apoptotic Immunity: Zero Contamination Guarantee

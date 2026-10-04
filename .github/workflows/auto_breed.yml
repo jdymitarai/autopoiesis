@@ -1,0 +1,48 @@
+name: Autonomous Auto-Breeder Bot
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'genomes/**'
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  evaluate-and-breed:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout trusted base repository
+      uses: actions/checkout@v4
+      with:
+        ref: main
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Set up Rust Toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install C Toolchain & Autopoiesis
+      run: |
+        sudo apt-get update && sudo apt-get install -y build-essential
+        python -m pip install --upgrade pip
+        pip install -e .
+
+    - name: Checkout PR Branch Files
+      run: |
+        gh pr checkout ${{ github.event.pull_request.number }}
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Run Autonomous PR Security Audit & Apoptotic Auto-Merge
+      run: |
+        python scripts/evaluate_pr.py --pr ${{ github.event.pull_request.number }}
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
