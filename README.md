@@ -137,7 +137,7 @@ Tested on host machine (`benchmarks/local_results.json`):
 
 ```bash
 # Clone repository
-git clone https://github.com/autopoiesis-engine/autopoiesis.git
+git clone https://github.com/jdymitarai/autopoiesis.git
 cd autopoiesis
 
 # Install in editable mode
