@@ -18,16 +18,40 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from .apoptotic_gate import ApoptoticVerdict, CognitiveApoptoticGate
-from .autophagy import MutationType, SkillRuleAutophagy, StagedMutation
-from .foraging import CognitiveForagingEngine, ForagingPolicy, Nutrient
-from .metabolism import (
-    CognitiveMetabolism,
-    EventType,
-    ProceduralMutationCandidate,
-    SessionEvent,
-    TargetType,
-)
+try:
+    from .apoptotic_gate import ApoptoticVerdict, CognitiveApoptoticGate
+    from .autophagy import MutationType, SkillRuleAutophagy, StagedMutation
+    from .foraging import CognitiveForagingEngine, ForagingPolicy, Nutrient
+    from .metabolism import (
+        CognitiveMetabolism,
+        EventType,
+        ProceduralMutationCandidate,
+        SessionEvent,
+        TargetType,
+    )
+except (ImportError, ValueError):
+    try:
+        from organism.apoptotic_gate import ApoptoticVerdict, CognitiveApoptoticGate
+        from organism.autophagy import MutationType, SkillRuleAutophagy, StagedMutation
+        from organism.foraging import CognitiveForagingEngine, ForagingPolicy, Nutrient
+        from organism.metabolism import (
+            CognitiveMetabolism,
+            EventType,
+            ProceduralMutationCandidate,
+            SessionEvent,
+            TargetType,
+        )
+    except (ImportError, ValueError):
+        from autopoiesis.agent.apoptotic_gate import ApoptoticVerdict, CognitiveApoptoticGate
+        from autopoiesis.agent.autophagy import MutationType, SkillRuleAutophagy, StagedMutation
+        from autopoiesis.agent.foraging import CognitiveForagingEngine, ForagingPolicy, Nutrient
+        from autopoiesis.agent.metabolism import (
+            CognitiveMetabolism,
+            EventType,
+            ProceduralMutationCandidate,
+            SessionEvent,
+            TargetType,
+        )
 
 
 @dataclass
@@ -41,6 +65,7 @@ class GenerationNode:
     rejected_mutations: List[Dict[str, Any]] = field(default_factory=list)
     snapshot_path: Optional[str] = None
     status: str = "ACTIVE"  # ACTIVE, VIABLE, ROLLED_BACK, APOPTOTIC
+    reflex_metadata: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -154,6 +179,11 @@ class AntigravityOrganism:
         self.organism_dir = Path(organism_dir).resolve() if organism_dir else self.agents_dir / "organism"
         self.snapshots_dir = self.organism_dir / "snapshots"
         self.lineage_file = self.organism_dir / "lineage.json"
+        self.reflex_file = self.organism_dir / "reflex_state.json"
+
+        # Initialize Neural Reflex Subsystem
+        self.reflex: Optional[Any] = None
+        self._load_or_init_reflex()
 
         # Initialize subsystems
         self.metabolism = CognitiveMetabolism(state_dir=self.organism_dir / "metabolism")
@@ -162,6 +192,7 @@ class AntigravityOrganism:
         self.foraging = CognitiveForagingEngine(
             policy=ForagingPolicy(),
             cache_dir=self.organism_dir / "foraging",
+            reflex=self.reflex,
         )
         self.lineage = LineageDAG()
         self.heartbeat_counter: int = 0
@@ -169,6 +200,29 @@ class AntigravityOrganism:
 
         # Load or bootstrap
         self._load_or_bootstrap()
+
+    def _load_or_init_reflex(self) -> None:
+        try:
+            from .reflex import TernaryReflexClassifier
+        except (ImportError, ValueError):
+            try:
+                from organism.reflex import TernaryReflexClassifier
+            except ImportError:
+                from autopoiesis.agent.reflex import TernaryReflexClassifier
+
+        if self.reflex_file.exists():
+            try:
+                self.reflex = TernaryReflexClassifier.load_json(self.reflex_file)
+                return
+            except Exception:
+                pass
+        self.reflex = TernaryReflexClassifier.create_calibrated()
+        self._save_reflex_state()
+
+    def _save_reflex_state(self) -> None:
+        if self.reflex is not None:
+            self.organism_dir.mkdir(parents=True, exist_ok=True)
+            self.reflex.save_json(self.reflex_file)
 
     def _load_or_bootstrap(self) -> None:
         self.organism_dir.mkdir(parents=True, exist_ok=True)
@@ -191,6 +245,12 @@ class AntigravityOrganism:
         snapshot_dir = self.snapshots_dir / "gen_0"
         self._create_snapshot(snapshot_dir)
 
+        reflex_meta = {
+            "state_hash": self.reflex.compute_state_hash()[:16] if self.reflex else "",
+            "weights_count": self.reflex.total_weights if self.reflex else 0,
+            "memory_footprint_bytes": self.reflex.get_memory_footprint() if self.reflex else 0,
+        }
+
         gen_0 = GenerationNode(
             generation=0,
             parent_generation=None,
@@ -200,13 +260,14 @@ class AntigravityOrganism:
             rejected_mutations=[],
             snapshot_path=str(snapshot_dir),
             status="ACTIVE",
+            reflex_metadata=reflex_meta,
         )
         self.lineage.add_node(gen_0, set_active=True)
         self._persist_lineage()
         return gen_0
 
     def compute_phenotype_hash(self) -> str:
-        """Compute deterministic SHA256 of all agent rules and skills."""
+        """Compute deterministic SHA256 of all agent rules, skills, and neural reflex state."""
         hasher = hashlib.sha256()
 
         # 1. Rules file
@@ -227,6 +288,10 @@ class AntigravityOrganism:
                     rel_path = file_path.relative_to(skills_dir).as_posix()
                     hasher.update(rel_path.encode("utf-8"))
                     hasher.update(file_path.read_bytes())
+
+        # 4. Neural Reflex Kernel State
+        if hasattr(self, "reflex") and self.reflex is not None:
+            hasher.update(self.reflex.compute_state_hash().encode("utf-8"))
 
         return hasher.hexdigest()
 
@@ -293,6 +358,33 @@ class AntigravityOrganism:
 
         # 3. Stage and verify candidate mutations sequentially against working buffer
         for cand in candidates:
+            if getattr(cand, "target_type", "") == TargetType.REFLEX:
+                verdict = self.apoptotic_gate.validate_reflex_mutation(cand)
+                verdicts.append(verdict)
+                if verdict.approved:
+                    try:
+                        curr_content = get_current(self.reflex_file)
+                        staged = StagedMutation.create(
+                            target_path=str(self.reflex_file),
+                            target_type=TargetType.REFLEX.value,
+                            original_content=curr_content,
+                            mutated_content=cand.content,
+                            mutation_type=MutationType.UPDATE_RULE,
+                            metadata={"title": cand.title, "reflex_state": cand.content},
+                        )
+                        approved_mutations.append(staged)
+                        working_buffer[str(self.reflex_file.resolve())] = cand.content
+                    except Exception:
+                        pass
+                else:
+                    rejected_records.append({
+                        "mutation_id": verdict.mutation_id,
+                        "target_path": "reflex_kernel",
+                        "rejection_reason": verdict.rejection_reason,
+                        "checks_failed": verdict.checks_failed,
+                    })
+                continue
+
             if cand.target_type == TargetType.RULE:
                 target_path = self.autophagy.rules_file
             elif cand.target_type == TargetType.SKILL:
@@ -424,11 +516,30 @@ class AntigravityOrganism:
                 tpath.parent.mkdir(parents=True, exist_ok=True)
                 tpath.write_text(content, encoding="utf-8")
 
+            # Update in-memory reflex instance if reflex_file was committed
+            reflex_str = str(self.reflex_file.resolve())
+            if reflex_str in files_to_write:
+                try:
+                    from .reflex import TernaryReflexClassifier
+                except (ImportError, ValueError):
+                    from autopoiesis.agent.reflex import TernaryReflexClassifier
+                try:
+                    self.reflex = TernaryReflexClassifier.load_json(self.reflex_file)
+                    self.foraging.reflex = self.reflex
+                except Exception:
+                    pass
+
             # Advance generation
             next_gen = gen_before + 1
             new_hash = self.compute_phenotype_hash()
             snapshot_dir = self.snapshots_dir / f"gen_{next_gen}"
             self._create_snapshot(snapshot_dir)
+
+            reflex_meta = {
+                "state_hash": self.reflex.compute_state_hash()[:16] if self.reflex else "",
+                "weights_count": self.reflex.total_weights if self.reflex else 0,
+                "memory_footprint_bytes": self.reflex.get_memory_footprint() if self.reflex else 0,
+            }
 
             new_node = GenerationNode(
                 generation=next_gen,
@@ -439,6 +550,7 @@ class AntigravityOrganism:
                 rejected_mutations=rejected_records,
                 snapshot_path=str(snapshot_dir),
                 status="ACTIVE",
+                reflex_metadata=reflex_meta,
             )
             self.lineage.add_node(new_node, set_active=True)
             self._persist_lineage()
@@ -457,6 +569,16 @@ class AntigravityOrganism:
 
         except Exception as ex:
             self.apoptotic_gate.rollback(backup_snapshot)
+            if self.reflex_file.exists():
+                try:
+                    from .reflex import TernaryReflexClassifier
+                except (ImportError, ValueError):
+                    from autopoiesis.agent.reflex import TernaryReflexClassifier
+                try:
+                    self.reflex = TernaryReflexClassifier.load_json(self.reflex_file)
+                    self.foraging.reflex = self.reflex
+                except Exception:
+                    pass
             return OrganismHeartbeatResult(
                 generation_before=gen_before,
                 generation_after=gen_before,
@@ -536,6 +658,31 @@ class AntigravityOrganism:
                             shutil.rmtree(dest, ignore_errors=True)
                         shutil.copytree(snap_s_dir, dest)
 
+            # Restore reflex state if present in snapshot
+            snap_reflex = snapshot_dir / "reflex_state.json"
+            if snap_reflex.exists():
+                try:
+                    from .reflex import TernaryReflexClassifier
+                except (ImportError, ValueError):
+                    from autopoiesis.agent.reflex import TernaryReflexClassifier
+                try:
+                    self.reflex = TernaryReflexClassifier.load_json(snap_reflex)
+                    self._save_reflex_state()
+                    self.foraging.reflex = self.reflex
+                except Exception:
+                    pass
+            elif self.reflex_file.exists():
+                try:
+                    from .reflex import TernaryReflexClassifier
+                except (ImportError, ValueError):
+                    from autopoiesis.agent.reflex import TernaryReflexClassifier
+                try:
+                    self.reflex = TernaryReflexClassifier.create_calibrated()
+                    self._save_reflex_state()
+                    self.foraging.reflex = self.reflex
+                except Exception:
+                    pass
+
             target_node.status = "ACTIVE"
             self.lineage.active_generation = target_generation
             self._persist_lineage()
@@ -588,6 +735,9 @@ class AntigravityOrganism:
             "active_skills_count": skill_count,
             "active_mcp_servers_count": mcp_count,
             "agents_rules_bytes": rules_size,
+            "reflex_active": bool(self.reflex),
+            "reflex_weights_count": self.reflex.total_weights if self.reflex else 0,
+            "reflex_memory_bytes": self.reflex.get_memory_footprint() if self.reflex else 0,
         }
 
     def render_lineage_ascii(self) -> str:
@@ -622,6 +772,13 @@ class AntigravityOrganism:
                         dest,
                         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
                     )
+
+        # Snapshot reflex state
+        if self.reflex is not None:
+            try:
+                self.reflex.save_json(target_dir / "reflex_state.json")
+            except Exception:
+                pass
 
     def _persist_lineage(self) -> None:
         self.organism_dir.mkdir(parents=True, exist_ok=True)

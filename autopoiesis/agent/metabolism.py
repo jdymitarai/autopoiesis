@@ -24,12 +24,14 @@ class EventType(str, enum.Enum):
     SUCCESSFUL_PATCH = "SUCCESSFUL_PATCH"
     PERFORMANCE_OBSERVATION = "PERFORMANCE_OBSERVATION"
     FORAGED_NUTRIENT = "FORAGED_NUTRIENT"
+    NEURAL_REFLEX_MUTATION = "NEURAL_REFLEX_MUTATION"
 
 
 class TargetType(str, enum.Enum):
     SKILL = "SKILL"
     RULE = "RULE"
     INSTRUCTION = "INSTRUCTION"
+    REFLEX = "REFLEX"
 
 
 @dataclass
@@ -223,10 +225,34 @@ class CognitiveMetabolism:
                 new_candidates.append(cand)
                 self.digested_event_ids.add(ev.event_id)
 
+        # 5. Digest Neural Reflex Genetic Mutations
+        reflex_events = [e for e in pending if e.event_type == EventType.NEURAL_REFLEX_MUTATION]
+        for ev in reflex_events:
+            cand = self._digest_reflex_mutation(ev)
+            if cand and cand.confidence >= min_confidence:
+                new_candidates.append(cand)
+                self.digested_event_ids.add(ev.event_id)
+
         # Record and persist
         self.extracted_candidates.extend(new_candidates)
         self._persist_state()
         return new_candidates
+
+    def _digest_reflex_mutation(self, event: SessionEvent) -> Optional[ProceduralMutationCandidate]:
+        payload = event.payload
+        mutation_id = payload.get("mutation_id", event.event_id)
+        confidence = float(payload.get("confidence", 0.95))
+        content = json.dumps(payload.get("reflex_state", payload), sort_keys=True)
+        return ProceduralMutationCandidate.create(
+            target_type=TargetType.REFLEX,
+            target_name="reflex_kernel",
+            mutation_type="UPDATE_REFLEX",
+            title=f"Neural Reflex Genetic Mutation: {mutation_id}",
+            content=content,
+            rationale=f"Discrete bit-flip weight mutation digested from event {event.event_id}",
+            confidence=confidence,
+            source_events=[event.event_id],
+        )
 
     def _digest_user_feedback(self, event: SessionEvent) -> Optional[ProceduralMutationCandidate]:
         payload = event.payload

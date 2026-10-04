@@ -13,17 +13,23 @@ import json
 import sys
 from pathlib import Path
 
-# Ensure .agents directory is in sys.path
-_agents_dir = Path(__file__).resolve().parent.parent
-if str(_agents_dir) not in sys.path:
-    sys.path.insert(0, str(_agents_dir))
+# Ensure appropriate search directories are in sys.path
+_current_dir = Path(__file__).resolve().parent
+_parent_dir = _current_dir.parent
+for _p in [str(_current_dir), str(_parent_dir), str(_parent_dir.parent)]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 try:
     from .metabolism import EventType, SessionEvent
     from .organism import AntigravityOrganism
 except (ImportError, ValueError):
-    from organism.metabolism import EventType, SessionEvent
-    from organism.organism import AntigravityOrganism
+    try:
+        from organism.metabolism import EventType, SessionEvent
+        from organism.organism import AntigravityOrganism
+    except (ImportError, ValueError):
+        from autopoiesis.agent.metabolism import EventType, SessionEvent
+        from autopoiesis.agent.organism import AntigravityOrganism
 
 
 def main() -> None:
@@ -53,6 +59,11 @@ def main() -> None:
     forage_p = subparsers.add_parser("forage", help="Trigger autonomous external web foraging")
     forage_p.add_argument("--url", help="Target URL to forage directly", default=None)
     forage_p.add_argument("--title", help="Optional title for the target URL", default=None)
+
+    # reflex
+    reflex_p = subparsers.add_parser("reflex", help="Ternary Neural Reflex diagnostics and benchmarks")
+    reflex_p.add_argument("--benchmark", action="store_true", help="Run reflex benchmark (latency, memory, accuracy)")
+    reflex_p.add_argument("--classify", type=str, default=None, help="Classify text using the reflex neural kernel")
 
     args = parser.parse_args()
 
@@ -120,6 +131,44 @@ def main() -> None:
         else:
             print("\nRollback failed. Check generation number and snapshots.\n")
             sys.exit(1)
+
+    elif args.command == "reflex":
+        try:
+            from .reflex import ReflexValidationHarness, TernaryReflexClassifier
+        except (ImportError, ValueError):
+            try:
+                from organism.reflex import ReflexValidationHarness, TernaryReflexClassifier
+            except ImportError:
+                from autopoiesis.agent.reflex import ReflexValidationHarness, TernaryReflexClassifier
+
+        clf = getattr(organism, "reflex", None) or TernaryReflexClassifier.create_calibrated()
+
+        if args.benchmark or (not args.classify):
+            harness = ReflexValidationHarness()
+            results = harness.benchmark(clf)
+            print("\n[Antigravity 1-Bit Ternary Reflex Kernel Benchmark]")
+            print(f"  Architecture                 : {results['architecture']}")
+            print(f"  Weights Count                : {results['weights_count']:,} discrete weights in {{-1, 0, +1}}")
+            print(f"  Multiplication-Free Forward  : {results['multiplication_free']}")
+            print(f"  Packed Memory Footprint      : {results['packed_memory_bytes']:,} bytes ({results['packed_memory_kb']} KB)")
+            print(f"  Unpacked Memory Footprint    : {results['unpacked_memory_bytes']:,} bytes ({results['unpacked_memory_kb']} KB)")
+            print(f"  Mean Inference Latency       : {results['mean_inference_latency_us']} us (microseconds)")
+            print(f"  Relevance Accuracy           : {results['relevance_accuracy'] * 100:.2f}%")
+            print(f"  Threat Detection Rate        : {results['threat_detection_rate'] * 100:.2f}%")
+            print(f"  Threat False Positive Rate   : {results['threat_false_positive_rate'] * 100:.2f}%")
+            print(f"  Overall Validation Accuracy  : {results['overall_accuracy'] * 100:.2f}%")
+            print(f"  State Hash                   : {results['state_hash']}")
+            print()
+
+        if args.classify:
+            rel, is_threat = clf.predict(args.classify)
+            det = clf.predict_detailed(args.classify)
+            print(f"\n[Reflex Prediction]")
+            print(f"  Input Text                   : {args.classify[:80]}")
+            print(f"  Relevance Score              : {rel}")
+            print(f"  Is Threat Detected           : {is_threat}")
+            print(f"  Threat Score                 : {det['threat_score']}")
+            print()
 
     elif args.command == "daemon":
         import time

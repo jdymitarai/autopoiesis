@@ -121,12 +121,26 @@ class CognitiveForagingEngine:
         policy: Optional[ForagingPolicy] = None,
         cache_dir: Optional[Path] = None,
         fetcher: Optional[Callable[[str, float], Tuple[int, str]]] = None,
+        reflex: Optional[Any] = None,
     ):
         self.policy = policy or ForagingPolicy()
         self.cache_dir = Path(cache_dir) if cache_dir else None
         self._custom_fetcher = fetcher
         self._last_fetch_time: float = 0.0
         self._foraged_history_ids: Set[str] = set()
+
+        # Neural Reflex subsystem integration
+        self.reflex: Optional[Any] = reflex
+        if self.reflex is None:
+            try:
+                from .reflex import TernaryReflexClassifier
+                self.reflex = TernaryReflexClassifier.create_calibrated()
+            except (ImportError, ValueError):
+                try:
+                    from organism.reflex import TernaryReflexClassifier
+                    self.reflex = TernaryReflexClassifier.create_calibrated()
+                except ImportError:
+                    self.reflex = None
 
         if self.cache_dir:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -165,13 +179,48 @@ class CognitiveForagingEngine:
 
         # 2. Defuse prompt injection vectors if enabled
         if self.policy.sanitize_injection:
+            # Defuse explicit executable tags & protocols first
+            for pattern in PROMPT_INJECTION_PATTERNS:
+                if "<script" in pattern.pattern or "javascript:" in pattern.pattern or "data:text" in pattern.pattern:
+                    text = pattern.sub("[SANITY_FILTERED]", text)
+
+            # Strip HTML tags so tag-wrapped words cannot evade injection filters
+            text = re.sub(r"<[^>]+>", " ", text)
+
+            # Apply full prompt injection pattern regexes on normalized text
             for pattern in PROMPT_INJECTION_PATTERNS:
                 text = pattern.sub("[SANITY_FILTERED]", text)
 
-        # 3. Strip HTML markup tags while retaining text
-        text = re.sub(r"<[^>]+>", " ", text)
+            # Fast neural reflex threat gating layer
+            if self.reflex is not None:
+                try:
+                    segments = re.split(r"([.\n\r]+)", text)
+                    sanitized_parts = []
+                    any_segment_filtered = False
+                    for seg in segments:
+                        if len(seg.strip()) > 8 and "[SANITY_FILTERED]" not in seg:
+                            is_threat, _ = self.reflex.is_threat(seg)
+                            if is_threat:
+                                sanitized_parts.append("[SANITY_FILTERED]")
+                                any_segment_filtered = True
+                            else:
+                                sanitized_parts.append(seg)
+                        else:
+                            sanitized_parts.append(seg)
+                    text = "".join(sanitized_parts)
 
-        # 4. Collapse excessive whitespace
+                    # Guard against threats spanning across segment boundaries
+                    if not any_segment_filtered and "[SANITY_FILTERED]" not in text:
+                        is_threat, _ = self.reflex.is_threat(text)
+                        if is_threat:
+                            text = "[SANITY_FILTERED]"
+                except Exception:
+                    pass
+        else:
+            # Strip HTML markup tags if injection sanitization is disabled
+            text = re.sub(r"<[^>]+>", " ", text)
+
+        # 3. Collapse excessive whitespace
         text = re.sub(r"\s+", " ", text).strip()
 
         return text
@@ -184,6 +233,7 @@ class CognitiveForagingEngine:
     ) -> Tuple[float, List[str]]:
         """
         Computes relevance score [0.0 - 1.0] and matched tags against organism domains.
+        Fuses keyword heuristics with Ternary Neural Reflex gating.
         """
         weights = custom_weights or DEFAULT_FOCUS_KEYWORDS
         combined = f"{title.lower()} {content.lower()}"
@@ -195,8 +245,22 @@ class CognitiveForagingEngine:
                 matched_tags.append(keyword)
                 score_accum += weight * 0.15
 
-        # Normalize score between 0.0 and 1.0
-        final_score = min(1.0, round(score_accum, 3))
+        # Normalize keyword score between 0.0 and 1.0
+        keyword_score = min(1.0, round(score_accum, 3))
+
+        # Neural gating via Ternary Reflex Classifier
+        if self.reflex is not None:
+            try:
+                neural_rel, _ = self.reflex.predict(f"{title} {content}")
+                if matched_tags:
+                    final_score = min(1.0, round(0.55 * keyword_score + 0.45 * neural_rel, 3))
+                else:
+                    final_score = min(keyword_score, round(neural_rel * 0.5, 3))
+            except Exception:
+                final_score = keyword_score
+        else:
+            final_score = keyword_score
+
         return final_score, matched_tags
 
     def _rate_limit(self) -> None:

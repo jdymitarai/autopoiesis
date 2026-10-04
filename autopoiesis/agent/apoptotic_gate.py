@@ -104,6 +104,12 @@ class CognitiveApoptoticGate:
         original = staged.original_content
 
         # -----------------------------------------------------------------
+        # 0. Neural Reflex Mutation Immune Validation
+        # -----------------------------------------------------------------
+        if str(getattr(staged, "target_type", "")).upper() in ("REFLEX", "TARGETTYPE.REFLEX"):
+            return self.validate_reflex_mutation(staged)
+
+        # -----------------------------------------------------------------
         # 1. Non-empty Content Check
         # -----------------------------------------------------------------
         if not mutated.strip():
@@ -232,6 +238,135 @@ class CognitiveApoptoticGate:
                 approved_mutations.append(staged)
 
         return approved_mutations, verdicts
+
+    def validate_reflex_mutation(
+        self,
+        candidate: Any,
+        baseline_harness: Optional[Any] = None,
+        min_relevance_acc: float = 0.85,
+        min_threat_recall: float = 0.95,
+        max_threat_fpr: float = 0.10,
+    ) -> ApoptoticVerdict:
+        """
+        Immune gate validation for Ternary Neural Reflex mutations.
+        Evaluates mutant reflex against safety validation set.
+        Rejects mutation if accuracy drops, false positive rate explodes,
+        or threat leakage occurs.
+        """
+        try:
+            from .reflex import ReflexValidationHarness, TernaryReflexClassifier
+        except (ImportError, ValueError):
+            try:
+                from organism.reflex import ReflexValidationHarness, TernaryReflexClassifier
+            except ImportError:
+                from autopoiesis.agent.reflex import ReflexValidationHarness, TernaryReflexClassifier
+
+        mutation_id = "reflex_mutation"
+        target_path = "reflex_kernel"
+        classifier: Optional[TernaryReflexClassifier] = None
+
+        if isinstance(candidate, TernaryReflexClassifier):
+            classifier = candidate
+        elif hasattr(candidate, "metadata") and candidate.metadata.get("reflex_instance"):
+            classifier = candidate.metadata["reflex_instance"]
+            mutation_id = getattr(candidate, "mutation_id", getattr(candidate, "candidate_id", mutation_id))
+        elif hasattr(candidate, "mutated_content") and candidate.mutated_content:
+            mutation_id = getattr(candidate, "mutation_id", mutation_id)
+            target_path = getattr(candidate, "target_path", target_path)
+            try:
+                import json
+                data = json.loads(candidate.mutated_content)
+                if isinstance(data, dict):
+                    classifier = TernaryReflexClassifier.from_dict(data)
+            except Exception:
+                pass
+        elif hasattr(candidate, "content") and candidate.content:
+            mutation_id = getattr(candidate, "candidate_id", getattr(candidate, "mutation_id", mutation_id))
+            try:
+                import json
+                data = json.loads(candidate.content)
+                if isinstance(data, dict):
+                    classifier = TernaryReflexClassifier.from_dict(data)
+            except Exception:
+                pass
+        elif isinstance(candidate, dict):
+            mutation_id = candidate.get("mutation_id", mutation_id)
+            try:
+                classifier = TernaryReflexClassifier.from_dict(candidate)
+            except Exception:
+                pass
+
+        if classifier is None:
+            return ApoptoticVerdict(
+                approved=False,
+                mutation_id=mutation_id,
+                target_path=target_path,
+                rejection_reason="INVALID_REFLEX_CANDIDATE: Could not deserialize or resolve TernaryReflexClassifier from candidate",
+                checks_passed=[],
+                checks_failed=["classifier_resolution"],
+            )
+
+        harness = baseline_harness or ReflexValidationHarness()
+        metrics = harness.evaluate(classifier)
+        passed: List[str] = []
+        failed: List[str] = []
+
+        # 1. Anti-Threat-Leakage Check (Highest Priority Immune Defense)
+        if metrics["threat_detection_rate"] < min_threat_recall:
+            failed.append("anti_threat_leakage")
+            return ApoptoticVerdict(
+                approved=False,
+                mutation_id=mutation_id,
+                target_path=target_path,
+                rejection_reason=(
+                    f"THREAT_LEAKAGE: Reflex mutant failed prompt injection immune barrier "
+                    f"(detection recall {metrics['threat_detection_rate']:.2%} < {min_threat_recall:.2%})"
+                ),
+                checks_passed=passed,
+                checks_failed=failed,
+            )
+        passed.append("anti_threat_leakage")
+
+        # 2. Relevance Accuracy Baseline Check
+        if metrics["relevance_accuracy"] < min_relevance_acc:
+            failed.append("relevance_accuracy_baseline")
+            return ApoptoticVerdict(
+                approved=False,
+                mutation_id=mutation_id,
+                target_path=target_path,
+                rejection_reason=(
+                    f"ACCURACY_DROP: Relevance accuracy degraded below acceptable boundary "
+                    f"({metrics['relevance_accuracy']:.2%} < {min_relevance_acc:.2%})"
+                ),
+                checks_passed=passed,
+                checks_failed=failed,
+            )
+        passed.append("relevance_accuracy_baseline")
+
+        # 3. False Positive Rate Upper Bound
+        if metrics["threat_false_positive_rate"] > max_threat_fpr:
+            failed.append("false_positive_boundary")
+            return ApoptoticVerdict(
+                approved=False,
+                mutation_id=mutation_id,
+                target_path=target_path,
+                rejection_reason=(
+                    f"EXCESSIVE_FALSE_POSITIVES: Clean technical or noise input falsely flagged as threat "
+                    f"({metrics['threat_false_positive_rate']:.2%} > {max_threat_fpr:.2%})"
+                ),
+                checks_passed=passed,
+                checks_failed=failed,
+            )
+        passed.append("false_positive_boundary")
+
+        return ApoptoticVerdict(
+            approved=True,
+            mutation_id=mutation_id,
+            target_path=target_path,
+            rejection_reason=None,
+            checks_passed=passed,
+            checks_failed=[],
+        )
 
     def rollback(self, backup_snapshot: Dict[str, str]) -> bool:
         """
