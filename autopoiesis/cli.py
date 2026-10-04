@@ -78,8 +78,92 @@ def cmd_evolve(args: argparse.Namespace) -> int:
 
 def cmd_benchmark(args: argparse.Namespace) -> int:
     print(BANNER.format(version=__version__))
-    # Runs comparison benchmark between original and evolved versions
     return cmd_evolve(args)
+
+
+def cmd_export_genome(args: argparse.Namespace) -> int:
+    print(BANNER.format(version=__version__))
+    workload_name = args.workload.lower()
+    if workload_name == "mandelbrot":
+        import autopoiesis.workloads.mandelbrot as target_mod
+        target_symbol = "mandelbrot_pixel"
+        test_vectors = target_mod.generate_mandelbrot_test_vectors()
+    elif workload_name == "nbody":
+        import autopoiesis.workloads.nbody as target_mod
+        target_symbol = "nbody_simulation_energy"
+        test_vectors = target_mod.generate_nbody_test_vectors()
+    else:
+        print(f"Unknown workload: {workload_name}", file=sys.stderr)
+        return 1
+
+    organism = LivingOrganism(
+        name=f"{workload_name}_organism",
+        target_module=target_mod,
+        target_symbol=target_symbol,
+        test_vectors=test_vectors,
+        render_dashboard=False,
+        artifacts_dir=args.artifacts_dir,
+    )
+
+    if args.evolve_first > 0:
+        print(f"[*] Pre-evolving organism for {args.evolve_first} generations...")
+        organism.run_evolution(max_generations=args.evolve_first)
+
+    from autopoiesis.core.breeding import export_genome_package
+
+    pkg = export_genome_package(
+        organism=organism,
+        breeder_handle=args.breeder,
+        output_path=args.output,
+        notes=args.notes,
+    )
+    print(f"\n[+] Successfully exported breeding genome to: {args.output}")
+    print(f"    Breeder Handle: {pkg['breeder']}")
+    print(f"    Active Phenotype: {pkg['source_type']}")
+    print(f"    Measured Speedup: {pkg['active_speedup']:.2f}x")
+    print(f"[*] You can now submit this genome via PR to https://github.com/jdymitarai/autopoiesis!")
+    return 0
+
+
+def cmd_import_genome(args: argparse.Namespace) -> int:
+    print(BANNER.format(version=__version__))
+    workload_name = args.workload.lower()
+    if workload_name == "mandelbrot":
+        import autopoiesis.workloads.mandelbrot as target_mod
+        target_symbol = "mandelbrot_pixel"
+        test_vectors = target_mod.generate_mandelbrot_test_vectors()
+    elif workload_name == "nbody":
+        import autopoiesis.workloads.nbody as target_mod
+        target_symbol = "nbody_simulation_energy"
+        test_vectors = target_mod.generate_nbody_test_vectors()
+    else:
+        print(f"Unknown workload: {workload_name}", file=sys.stderr)
+        return 1
+
+    organism = LivingOrganism(
+        name=f"{workload_name}_organism",
+        target_module=target_mod,
+        target_symbol=target_symbol,
+        test_vectors=test_vectors,
+        render_dashboard=False,
+        artifacts_dir=args.artifacts_dir,
+    )
+
+    from autopoiesis.core.breeding import import_and_verify_genome_package
+
+    print(f"[*] Importing and verifying foreign genome from: {args.input}")
+    success, chrom, speedup, msg = import_and_verify_genome_package(
+        package_path=args.input,
+        organism=organism,
+        min_speedup_per_step=args.min_speedup,
+    )
+    if success:
+        print(f"\n[+] {msg}")
+        print(f"[*] Spliced into lineage DAG: Active generation is now Gen {organism.current_generation}")
+        return 0
+    else:
+        print(f"\n[-] {msg}", file=sys.stderr)
+        return 1
 
 
 def main() -> None:
@@ -130,6 +214,22 @@ def main() -> None:
     bench_p.add_argument("--json-out", type=str, default=None)
     bench_p.add_argument("--artifacts-dir", type=str, default=None, help="Directory to store compiled shared libraries")
 
+    # export-genome command
+    export_p = subparsers.add_parser("export-genome", help="Export an evolved chromosome for community sharing")
+    export_p.add_argument("--workload", "-w", default="mandelbrot", choices=["mandelbrot", "nbody"])
+    export_p.add_argument("--output", "-o", default="breeder_genome.json", help="Path to write exported genome package")
+    export_p.add_argument("--breeder", "-b", default="@anonymous", help="Your GitHub username or breeder handle")
+    export_p.add_argument("--notes", "-n", default=None, help="Evolution environment notes (e.g. CPU/OS/flags)")
+    export_p.add_argument("--evolve-first", "-e", type=int, default=2, help="Number of generations to evolve before exporting")
+    export_p.add_argument("--artifacts-dir", type=str, default=None)
+
+    # import-genome command
+    import_p = subparsers.add_parser("import-genome", help="Import, verify, and splice a foreign chromosome through the Apoptotic Gate")
+    import_p.add_argument("--input", "-i", required=True, help="Path to genome package JSON")
+    import_p.add_argument("--workload", "-w", default="mandelbrot", choices=["mandelbrot", "nbody"])
+    import_p.add_argument("--min-speedup", type=float, default=1.0, help="Minimum speedup threshold required to accept foreign genome")
+    import_p.add_argument("--artifacts-dir", type=str, default=None)
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -137,6 +237,10 @@ def main() -> None:
 
     if args.command in ("evolve", "benchmark"):
         sys.exit(cmd_evolve(args))
+    elif args.command == "export-genome":
+        sys.exit(cmd_export_genome(args))
+    elif args.command == "import-genome":
+        sys.exit(cmd_import_genome(args))
 
 
 if __name__ == "__main__":

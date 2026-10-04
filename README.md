@@ -5,7 +5,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-29%2F29%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-31%2F31%20passed-brightgreen.svg)]()
 [![Empirical Speedup](https://img.shields.io/badge/empirical%20speedup-14.02x-success.svg)]()
 
 ---
@@ -220,7 +220,28 @@ tests/test_sandbox.py::test_sandbox_timeout_quarantine PASSED            [ 93%]
 tests/test_sandbox.py::test_sandbox_exception_handling PASSED            [ 96%]
 tests/test_sandbox.py::test_sandbox_segfault_quarantine PASSED           [100%]
 
-============================= 29 passed in 5.61s ==============================
+============================= 31 passed in 6.42s ==============================
+```
+
+---
+
+## 🌱 Global Distributed Breeding Protocol ("人人都是育種家")
+
+Autopoiesis v0.1.1 enables **decentralized evolutionary computing**. Anyone in the open-source community can breed workloads locally, export certified chromosomes, and submit them via Pull Requests to be permanently spliced into the master species tree.
+
+Detailed guide: **[Read BREEDING.md](./BREEDING.md)**
+
+```bash
+# 1. Evolve locally on your machine
+autopoiesis evolve -w mandelbrot -g 5
+
+# 2. Export your champion chromosome
+autopoiesis export-genome -w mandelbrot -b @your_handle -e 3 -o genomes/mandelbrot_@your_handle.json
+
+# 3. Test verification through the Apoptotic Gate
+autopoiesis import-genome -w mandelbrot -i genomes/mandelbrot_@your_handle.json
+
+# 4. Open a PR to submit your genome to the species tree!
 ```
 
 ---
@@ -231,10 +252,11 @@ tests/test_sandbox.py::test_sandbox_segfault_quarantine PASSED           [100%]
 autopoiesis/
 ├── autopoiesis/
 │   ├── __init__.py               # Top-level API exports
-│   ├── cli.py                    # Command-line interface
+│   ├── cli.py                    # Command-line interface (evolve, export-genome, import-genome)
 │   ├── core/
 │   │   ├── __init__.py
 │   │   ├── apoptosis.py          # Deterministic immune gate & verification
+│   │   ├── breeding.py           # Distributed breeding & cross-platform genome exchange
 │   │   ├── chromosome.py         # Chromosome representation & Lineage DAG
 │   │   ├── hotspot.py            # Execution profiler & AST complexity analyzer
 │   │   ├── hotswap.py            # Atomic in-memory hot-swapper with undo stack

@@ -64,23 +64,53 @@ class LivingOrganism:
         self._initialize_gen0()
 
     def _initialize_gen0(self) -> None:
-        """Extracts source code of baseline phenotype and measures initial latency."""
         import ast
         import textwrap
         orig_fn = getattr(self.target_module, self.target_symbol)
-        fn_source = textwrap.dedent(inspect.getsource(orig_fn))
+        raw_source = getattr(orig_fn, "__autopoiesis_source__", None)
+        if not raw_source:
+            try:
+                raw_source = inspect.getsource(orig_fn)
+            except Exception:
+                raw_source = ""
+
+        # Fallback: if inspect failed (e.g. wrapper or dynamic function), parse target_module file
+        if not raw_source:
+            try:
+                mod_file = inspect.getsourcefile(self.target_module) or inspect.getfile(self.target_module)
+                if mod_file and os.path.exists(mod_file):
+                    with open(mod_file, "r", encoding="utf-8") as f:
+                        mod_code = f.read()
+                    mod_ast = ast.parse(mod_code)
+                    for node in mod_ast.body:
+                        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == self.target_symbol:
+                            raw_source = ast.unparse(node)
+                            break
+            except Exception:
+                pass
+
+        fn_source = textwrap.dedent(raw_source) if raw_source else ""
 
         # Extract module-level imports so the chromosome code is self-contained
         import_header = ""
         try:
-            mod_source = inspect.getsource(self.target_module)
-            mod_tree = ast.parse(mod_source)
-            import_nodes = [
-                n for n in mod_tree.body
-                if isinstance(n, (ast.Import, ast.ImportFrom)) and not (isinstance(n, ast.ImportFrom) and n.module == "__future__")
-            ]
-            if import_nodes:
-                import_header = ast.unparse(ast.Module(body=import_nodes, type_ignores=[])) + "\n\n"
+            mod_source = None
+            try:
+                mod_source = inspect.getsource(self.target_module)
+            except Exception:
+                mod_file = inspect.getsourcefile(self.target_module) or inspect.getfile(self.target_module)
+                if mod_file and os.path.exists(mod_file):
+                    with open(mod_file, "r", encoding="utf-8") as f:
+                        mod_source = f.read()
+
+            if mod_source:
+                mod_tree = ast.parse(mod_source)
+                import_nodes = [
+                    n for n in mod_tree.body
+                    if isinstance(n, (ast.Import, ast.ImportFrom)) and not (isinstance(n, ast.ImportFrom) and n.module == "__future__")
+                ]
+                if import_nodes:
+                    import_header = ast.unparse(ast.Module(body=import_nodes, type_ignores=[])) + "\n\n"
         except Exception:
             pass
 
@@ -264,3 +294,19 @@ class LivingOrganism:
                 self.lineage_dag.active_chromosome_id = parent_id
             return True
         return False
+
+    def restore_baseline(self) -> None:
+        """Restores the target module symbol back to its baseline unpatched implementation."""
+        self.hot_swapper.restore_initial(self.target_module, self.target_symbol)
+
+    def close(self) -> None:
+        """Cleanly releases loaded native binaries and restores baseline phenotype."""
+        self.restore_baseline()
+        self.hot_swapper.unload_all()
+
+    def __enter__(self) -> LivingOrganism:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+

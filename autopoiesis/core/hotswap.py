@@ -98,6 +98,20 @@ class AtomicHotSwapper:
             if current_impl is not None:
                 self._history[key].append(current_impl)
 
+            # Preserve root original source on the new wrapper so subsequent LivingOrganisms can inspect it
+            orig_src = getattr(current_impl, "__autopoiesis_source__", None)
+            if not orig_src and current_impl is not None:
+                try:
+                    import inspect
+                    orig_src = inspect.getsource(current_impl)
+                except Exception:
+                    orig_src = None
+            if orig_src:
+                try:
+                    setattr(new_callable, "__autopoiesis_source__", orig_src)
+                except Exception:
+                    pass
+
             # Atomic module dict update
             setattr(target_module, symbol_name, new_callable)
             self._active_chromosomes[key] = chromosome
@@ -116,6 +130,31 @@ class AtomicHotSwapper:
             setattr(target_module, symbol_name, previous_callable)
             return previous_callable
 
+    def restore_initial(self, target_module: Any, symbol_name: str) -> Optional[Callable[..., Any]]:
+        """Restores the initial unpatched implementation from the root of the history stack."""
+        key = self._make_key(target_module, symbol_name)
+        with self._lock:
+            if not self._history.get(key):
+                return None
+            initial_callable = self._history[key][0]
+            self._history[key].clear()
+            setattr(target_module, symbol_name, initial_callable)
+            self._active_chromosomes.pop(key, None)
+            return initial_callable
+
+    def unload_all(self) -> None:
+        """Releases loaded shared dynamic libraries (FreeLibrary on Windows)."""
+        import platform
+        if platform.system() == "Windows":
+            for cdll in self._loaded_cdlls:
+                try:
+                    if hasattr(cdll, "_handle") and cdll._handle:
+                        ctypes.windll.kernel32.FreeLibrary(cdll._handle)
+                except Exception:
+                    pass
+        self._loaded_cdlls.clear()
+
     def get_active_chromosome(self, target_module: Any, symbol_name: str) -> Optional[Chromosome]:
         key = self._make_key(target_module, symbol_name)
         return self._active_chromosomes.get(key)
+
