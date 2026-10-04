@@ -5,7 +5,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-34%2F34%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-62%2F62%20passed-brightgreen.svg)]()
 [![Empirical Speedup](https://img.shields.io/badge/empirical%20speedup-14.02x-success.svg)]()
 
 ---
@@ -271,6 +271,41 @@ Once connected, your AI assistant can autonomously invoke:
 
 ---
 
+## 🧠 Cognitive Autopoiesis: Self-Evolving AI Agents (v0.1.3)
+
+Autopoiesis v0.1.3 extends beyond numeric computation into **metacognitive AI agent evolution**. AI agents equipped with `autopoiesis.agent` evolve their own rules, instruction prompts, and procedural skills through real coding sessions:
+
+```
+                      COGNITIVE AUTOPOIESIS LIFECYCLE
+ +-------------------------------------------------------------------------+
+ |                                                                         |
+ |  [ Coding Sessions ] ---> [ Cognitive Metabolism ]                      |
+ |  (Errors, Fixes, Lints)   * Extracts candidate rule/skill mutations     |
+ |                                    |                                    |
+ |                                    v                                    |
+ |                         [ Skill & Rule Autophagy ]                      |
+ |                         * Dual-buffer staging & bloat pruning           |
+ |                                    |                                    |
+ |                                    v                                    |
+ |                       [ Cognitive Apoptotic Gate ]                      |
+ |                       * Chesterton's Fence & anti-hallucination         |
+ |                       * Strict zero-regression validation               |
+ |                                    |                                    |
+ |                                    v                                    |
+ |                       [ Lineage Tree (Gen 0 -> N) ]                     |
+ |                       * Atomic hot-swap & generational history          |
+ |                                                                         |
+ +-------------------------------------------------------------------------+
+```
+
+### Key Modules:
+- **`autopoiesis.agent.metabolism`**: Digestion engine that processes session interactions and error recoveries into persistent procedural mutations.
+- **`autopoiesis.agent.autophagy`**: Pruning and optimization engine for `.agents/skills/` and `AGENTS.md`.
+- **`autopoiesis.agent.apoptotic_gate`**: Deterministic cognitive immune gate enforcing syntax integrity, prompt coherence, and rollback immunity.
+- **`autopoiesis.agent.organism`**: Generational Lineage Tree tracking agent evolution and managing 24/7 background evolutionary heartbeat pulses.
+
+---
+
 ## 📁 Repository Structure
 
 ```
@@ -279,6 +314,13 @@ autopoiesis/
 │   ├── __init__.py               # Top-level API exports
 │   ├── cli.py                    # Command-line interface (evolve, export-genome, import-genome)
 │   ├── mcp_server.py             # Universal Model Context Protocol (MCP) server
+│   ├── agent/                    # Cognitive Autopoiesis: Agent Self-Evolution (v0.1.3)
+│   │   ├── __init__.py
+│   │   ├── apoptotic_gate.py     # Cognitive immune gate & prompt validation
+│   │   ├── autophagy.py          # Dual-buffer rule & skill mutation engine
+│   │   ├── cli.py                # Agent heartbeat & daemon CLI (autopoiesis-agent)
+│   │   ├── metabolism.py         # Session event digestion & mutation candidate generator
+│   │   └── organism.py           # Generational lineage DAG & heartbeat orchestrator
 │   ├── core/
 │   │   ├── __init__.py
 │   │   ├── apoptosis.py          # Deterministic immune gate & verification
@@ -310,7 +352,7 @@ autopoiesis/
 │   └── speedup_curve.png         # High-resolution benchmark plot artifact
 ├── colab/
 │   └── run_colab_trial.py        # Colab empirical trial runner script
-├── tests/                        # Comprehensive test suite (100% pass)
+├── tests/                        # Comprehensive test suite (62/62 passed)
 ├── pyproject.toml                # Packaging & dependencies
 ├── AGENT_INTEGRATION.md          # Universal AI Agent & MCP mounting guide
 ├── BREEDING.md                   # Global distributed breeding protocol guide
