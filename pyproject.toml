@@ -8,7 +8,7 @@ version = "0.1.1"
 description = "Digital Autopoiesis: Self-Evolving & Self-Mutating Codebase Engine with Apoptotic Immunity"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 authors = [
     { name = "Autopoiesis Research Team", email = "research@autopoiesis.engine" }
 ]
@@ -26,6 +26,9 @@ dev = [
 
 [project.scripts]
 autopoiesis = "autopoiesis.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["autopoiesis*"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
