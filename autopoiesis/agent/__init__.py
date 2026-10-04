@@ -24,6 +24,12 @@ from .apoptotic_gate import (
     ApoptoticVerdict,
     CognitiveApoptoticGate,
 )
+from .foraging import (
+    CognitiveForagingEngine,
+    ForageSourceType,
+    ForagingPolicy,
+    Nutrient,
+)
 from .organism import (
     AntigravityOrganism,
     GenerationNode,
@@ -41,6 +47,10 @@ __all__ = [
     "StagedMutation",
     "ApoptoticVerdict",
     "CognitiveApoptoticGate",
+    "CognitiveForagingEngine",
+    "ForageSourceType",
+    "ForagingPolicy",
+    "Nutrient",
     "AntigravityOrganism",
     "GenerationNode",
     "OrganismHeartbeatResult",

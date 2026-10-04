@@ -271,35 +271,38 @@ Once connected, your AI assistant can autonomously invoke:
 
 ---
 
-## 🧠 Cognitive Autopoiesis: Self-Evolving AI Agents (v0.1.3)
+## 🧠 Cognitive Autopoiesis & Exotrophic Foraging: Self-Evolving AI Agents (v0.1.4)
 
-Autopoiesis v0.1.3 extends beyond numeric computation into **metacognitive AI agent evolution**. AI agents equipped with `autopoiesis.agent` evolve their own rules, instruction prompts, and procedural skills through real coding sessions:
+Autopoiesis v0.1.4 extends AI agent metacognition with **autonomous exotrophic foraging**. AI agents equipped with `autopoiesis.agent` not only evolve from local coding sessions, but also independently scout external security advisories, vulnerability bulletins, and official documentation—digesting them through an immune apoptotic gate:
 
 ```
-                      COGNITIVE AUTOPOIESIS LIFECYCLE
+                      COGNITIVE AUTOPOIESIS & FORAGING
  +-------------------------------------------------------------------------+
  |                                                                         |
- |  [ Coding Sessions ] ---> [ Cognitive Metabolism ]                      |
- |  (Errors, Fixes, Lints)   * Extracts candidate rule/skill mutations     |
- |                                    |                                    |
- |                                    v                                    |
- |                         [ Skill & Rule Autophagy ]                      |
- |                         * Dual-buffer staging & bloat pruning           |
- |                                    |                                    |
- |                                    v                                    |
- |                       [ Cognitive Apoptotic Gate ]                      |
- |                       * Chesterton's Fence & anti-hallucination         |
- |                       * Strict zero-regression validation               |
- |                                    |                                    |
- |                                    v                                    |
- |                       [ Lineage Tree (Gen 0 -> N) ]                     |
- |                       * Atomic hot-swap & generational history          |
+ |  [ Coding Sessions ] -----\                                             |
+ |  (Errors, Fixes, Lints)    +--> [ Cognitive Metabolism ]                |
+ |                           /     * Ingests local events & web nutrients  |
+ |  [ Exotrophic Forager ] -/      * Extracts candidate rule/skill muts    |
+ |  (CVE, GitHub Sec, Docs)                 |                              |
+ |                                          v                              |
+ |                               [ Skill & Rule Autophagy ]                |
+ |                               * Dual-buffer staging & bloat pruning     |
+ |                                          |                              |
+ |                                          v                              |
+ |                             [ Cognitive Apoptotic Gate ]                |
+ |                             * Chesterton's Fence & injection filter     |
+ |                             * Strict zero-regression validation         |
+ |                                          |                              |
+ |                                          v                              |
+ |                             [ Lineage Tree (Gen 0 -> N) ]               |
+ |                             * Atomic hot-swap & generational history    |
  |                                                                         |
  +-------------------------------------------------------------------------+
 ```
 
 ### Key Modules:
-- **`autopoiesis.agent.metabolism`**: Digestion engine that processes session interactions and error recoveries into persistent procedural mutations.
+- **`autopoiesis.agent.foraging`**: Autonomous exotrophic perception engine scouting GitHub security advisories, bug bounty feeds, and official docs with zero-width sanitization and injection filtering.
+- **`autopoiesis.agent.metabolism`**: Digestion engine that processes session interactions and foraged nutrients into persistent procedural mutations.
 - **`autopoiesis.agent.autophagy`**: Pruning and optimization engine for `.agents/skills/` and `AGENTS.md`.
 - **`autopoiesis.agent.apoptotic_gate`**: Deterministic cognitive immune gate enforcing syntax integrity, prompt coherence, and rollback immunity.
 - **`autopoiesis.agent.organism`**: Generational Lineage Tree tracking agent evolution and managing 24/7 background evolutionary heartbeat pulses.
@@ -314,11 +317,12 @@ autopoiesis/
 │   ├── __init__.py               # Top-level API exports
 │   ├── cli.py                    # Command-line interface (evolve, export-genome, import-genome)
 │   ├── mcp_server.py             # Universal Model Context Protocol (MCP) server
-│   ├── agent/                    # Cognitive Autopoiesis: Agent Self-Evolution (v0.1.3)
+│   ├── agent/                    # Cognitive Autopoiesis: Agent Self-Evolution (v0.1.4)
 │   │   ├── __init__.py
 │   │   ├── apoptotic_gate.py     # Cognitive immune gate & prompt validation
 │   │   ├── autophagy.py          # Dual-buffer rule & skill mutation engine
 │   │   ├── cli.py                # Agent heartbeat & daemon CLI (autopoiesis-agent)
+│   │   ├── foraging.py           # Autonomous exotrophic web perception & nutrient foraging
 │   │   ├── metabolism.py         # Session event digestion & mutation candidate generator
 │   │   └── organism.py           # Generational lineage DAG & heartbeat orchestrator
 │   ├── core/

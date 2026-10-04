@@ -49,6 +49,11 @@ def main() -> None:
     daemon_p = subparsers.add_parser("daemon", help="Run 24/7 autonomous heartbeat daemon")
     daemon_p.add_argument("--interval", type=int, default=300, help="Heartbeat interval in seconds (default: 300)")
 
+    # forage
+    forage_p = subparsers.add_parser("forage", help="Trigger autonomous external web foraging")
+    forage_p.add_argument("--url", help="Target URL to forage directly", default=None)
+    forage_p.add_argument("--title", help="Optional title for the target URL", default=None)
+
     args = parser.parse_args()
 
     organism = AntigravityOrganism()
@@ -72,7 +77,41 @@ def main() -> None:
         result = organism.pulse(events)
         print(f"\nPulse completed: {result.details}")
         print(f"Gen: {result.generation_before} -> {result.generation_after}")
-        print(f"Applied: {result.mutations_applied}, Rejected: {result.mutations_rejected}\n")
+        print(f"Applied: {result.mutations_applied}, Rejected: {result.mutations_rejected}")
+        if result.foraged_count > 0:
+            print(f"Foraged: {result.foraged_count} external nutrient(s)")
+        print()
+
+    elif args.command == "forage":
+        if args.url:
+            print(f"\n[Foraging] Scouting target URL: {args.url} ...")
+            nutrient = organism.foraging.forage_url(args.url, title=args.title)
+            if nutrient:
+                print(f"  [+] Ingested Nutrient: {nutrient.title} (relevance: {nutrient.relevance_score}, tags: {nutrient.tags})")
+                organism.metabolism.ingest_event(
+                    SessionEvent.create(
+                        event_type=EventType.FORAGED_NUTRIENT,
+                        payload=nutrient.to_dict(),
+                        source="cli_forage",
+                    )
+                )
+                print("  [+] Enqueued for next metabolic pulse.\n")
+            else:
+                print("  [-] No nutrient extracted (relevance below threshold or duplicate).\n")
+        else:
+            print("\n[Foraging] Scouting active curated sources ...")
+            nutrients = organism.foraging.forage_active_sources()
+            print(f"  [+] Foraged {len(nutrients)} new nutrient(s).")
+            for nut in nutrients:
+                print(f"      * {nut.title} (relevance: {nut.relevance_score}, tags: {nut.tags})")
+                organism.metabolism.ingest_event(
+                    SessionEvent.create(
+                        event_type=EventType.FORAGED_NUTRIENT,
+                        payload=nut.to_dict(),
+                        source="cli_forage",
+                    )
+                )
+            print("  [+] All nutrients enqueued for next metabolic pulse.\n")
 
     elif args.command == "rollback":
         ok = organism.rollback(args.generation)
@@ -94,10 +133,11 @@ def main() -> None:
                 pulse_count += 1
                 ts = time.strftime("%Y-%m-%d %H:%M:%S")
                 res = organism.pulse()
+                foraged_str = f", foraged: {res.foraged_count}" if res.foraged_count > 0 else ""
                 if res.mutations_applied > 0:
-                    print(f"[{ts}] Heartbeat #{pulse_count}: Evolved! Gen {res.generation_before} -> {res.generation_after} (+{res.mutations_applied} applied)", flush=True)
+                    print(f"[{ts}] Heartbeat #{pulse_count}: Evolved! Gen {res.generation_before} -> {res.generation_after} (+{res.mutations_applied} applied{foraged_str})", flush=True)
                 else:
-                    print(f"[{ts}] Heartbeat #{pulse_count}: Homeostasis stable (Gen {organism.lineage.active_generation}, 0 pending mutations)", flush=True)
+                    print(f"[{ts}] Heartbeat #{pulse_count}: Homeostasis stable (Gen {organism.lineage.active_generation}, 0 pending mutations{foraged_str})", flush=True)
                 time.sleep(interval)
         except KeyboardInterrupt:
             print("\n[Antigravity Organism] Heartbeat Daemon paused safely.\n", flush=True)

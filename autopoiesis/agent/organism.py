@@ -20,8 +20,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .apoptotic_gate import ApoptoticVerdict, CognitiveApoptoticGate
 from .autophagy import MutationType, SkillRuleAutophagy, StagedMutation
+from .foraging import CognitiveForagingEngine, ForagingPolicy, Nutrient
 from .metabolism import (
     CognitiveMetabolism,
+    EventType,
     ProceduralMutationCandidate,
     SessionEvent,
     TargetType,
@@ -59,6 +61,7 @@ class OrganismHeartbeatResult:
     verdicts: List[ApoptoticVerdict] = field(default_factory=list)
     success: bool = True
     details: str = ""
+    foraged_count: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -70,6 +73,7 @@ class OrganismHeartbeatResult:
             "verdicts": [v.to_dict() for v in self.verdicts],
             "success": self.success,
             "details": self.details,
+            "foraged_count": self.foraged_count,
         }
 
 
@@ -155,7 +159,13 @@ class AntigravityOrganism:
         self.metabolism = CognitiveMetabolism(state_dir=self.organism_dir / "metabolism")
         self.autophagy = SkillRuleAutophagy(agents_dir=self.agents_dir)
         self.apoptotic_gate = CognitiveApoptoticGate()
+        self.foraging = CognitiveForagingEngine(
+            policy=ForagingPolicy(),
+            cache_dir=self.organism_dir / "foraging",
+        )
         self.lineage = LineageDAG()
+        self.heartbeat_counter: int = 0
+        self.forage_interval: int = 5
 
         # Load or bootstrap
         self._load_or_bootstrap()
@@ -221,26 +231,47 @@ class AntigravityOrganism:
         return hasher.hexdigest()
 
     def pulse(
-        self, events: Optional[List[SessionEvent]] = None
+        self,
+        events: Optional[List[SessionEvent]] = None,
+        force_forage: bool = False,
     ) -> OrganismHeartbeatResult:
         """
         Execute one metabolic pulse / heartbeat cycle:
         1. Ingest session events into Cognitive Metabolism
-        2. Digest events into procedural mutation candidates
-        3. Autophagy stages candidates against working buffer
-        4. Apoptotic Gate validates staged mutations with zero-tolerance immunity
-        5. Atomically apply approved mutations, advance generation, or trigger rollback
+        2. Autonomous Exotrophic Foraging (scouts external web if enabled)
+        3. Digest events into procedural mutation candidates
+        4. Autophagy stages candidates against working buffer
+        5. Apoptotic Gate validates staged mutations with zero-tolerance immunity
+        6. Atomically apply approved mutations, advance generation, or trigger rollback
         """
         gen_before = self.lineage.active_generation
 
-        # 1. Ingest events
+        # 1. Ingest explicit session events
         if events:
             self.metabolism.ingest_batch(events)
+
+        # 2. Autonomous Exotrophic Foraging
+        self.heartbeat_counter += 1
+        foraged_count = 0
+        if force_forage or (self.forage_interval > 0 and self.heartbeat_counter % self.forage_interval == 0):
+            try:
+                nutrients = self.foraging.forage_active_sources()
+                for nut in nutrients:
+                    self.metabolism.ingest_event(
+                        SessionEvent.create(
+                            event_type=EventType.FORAGED_NUTRIENT,
+                            payload=nut.to_dict(),
+                            source="exotrophic_forager",
+                        )
+                    )
+                foraged_count = len(nutrients)
+            except Exception:
+                foraged_count = 0
 
         pending_events = self.metabolism.get_pending_events()
         events_count = len(pending_events)
 
-        # 2. Digest events
+        # 3. Digest events
         candidates = self.metabolism.digest()
 
         # Working buffer tracks accumulated file content during this pulse cycle
@@ -357,6 +388,7 @@ class AntigravityOrganism:
                     verdicts=verdicts,
                     success=True,
                     details=f"Apoptotic Gate pruned all {len(rejected_records)} proposed mutations. Organism protected.",
+                    foraged_count=foraged_count,
                 )
             else:
                 return OrganismHeartbeatResult(
@@ -368,6 +400,7 @@ class AntigravityOrganism:
                     verdicts=verdicts,
                     success=True,
                     details="Quiescent state: no mutations required.",
+                    foraged_count=foraged_count,
                 )
 
         # 5. Apply approved mutations atomically with backup
@@ -419,6 +452,7 @@ class AntigravityOrganism:
                 verdicts=verdicts,
                 success=True,
                 details=f"Evolved to Gen {next_gen}. Applied {len(approved_mutations)} mutations.",
+                foraged_count=foraged_count,
             )
 
         except Exception as ex:
@@ -432,7 +466,11 @@ class AntigravityOrganism:
                 verdicts=verdicts,
                 success=False,
                 details=f"Rollback triggered due to application error: {ex}",
+                foraged_count=foraged_count,
             )
+
+    # Alias heartbeat to pulse
+    heartbeat = pulse
 
     def evolve(
         self,

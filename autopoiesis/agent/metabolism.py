@@ -10,6 +10,7 @@ from __future__ import annotations
 import enum
 import hashlib
 import json
+import re
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -22,6 +23,7 @@ class EventType(str, enum.Enum):
     TOOL_FAILURE = "TOOL_FAILURE"
     SUCCESSFUL_PATCH = "SUCCESSFUL_PATCH"
     PERFORMANCE_OBSERVATION = "PERFORMANCE_OBSERVATION"
+    FORAGED_NUTRIENT = "FORAGED_NUTRIENT"
 
 
 class TargetType(str, enum.Enum):
@@ -213,6 +215,14 @@ class CognitiveMetabolism:
                 new_candidates.append(cand)
                 self.digested_event_ids.add(ev.event_id)
 
+        # 4. Digest Foraged External Nutrients
+        foraged_events = [e for e in pending if e.event_type == EventType.FORAGED_NUTRIENT]
+        for ev in foraged_events:
+            cand = self._digest_foraged_nutrient(ev)
+            if cand and cand.confidence >= min_confidence:
+                new_candidates.append(cand)
+                self.digested_event_ids.add(ev.event_id)
+
         # Record and persist
         self.extracted_candidates.extend(new_candidates)
         self._persist_state()
@@ -302,6 +312,29 @@ class CognitiveMetabolism:
             )
 
         return None
+
+    def _digest_foraged_nutrient(self, event: SessionEvent) -> Optional[ProceduralMutationCandidate]:
+        payload = event.payload
+        title = payload.get("title", "")
+        content = payload.get("content", "")
+        relevance = float(payload.get("relevance_score", 0.5))
+        tags = payload.get("tags", [])
+        source_url = payload.get("source_url", "")
+        if not content.strip():
+            return None
+
+        skill_tag = tags[0] if tags else "external-intelligence"
+        clean_tag = re.sub(r"[^a-zA-Z0-9_-]", "-", skill_tag).lower().strip("-")
+        return ProceduralMutationCandidate.create(
+            target_type=TargetType.SKILL,
+            target_name=f"foraged-{clean_tag}",
+            mutation_type="CREATE_SKILL",
+            title=f"Foraged: {title}",
+            content=content.strip(),
+            rationale=f"Synthesized from autonomous external foraging from {source_url}",
+            confidence=min(0.9, max(0.5, relevance)),
+            source_events=[event.event_id],
+        )
 
     def _persist_state(self) -> None:
         if not self.state_dir:
