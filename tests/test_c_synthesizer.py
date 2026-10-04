@@ -63,3 +63,42 @@ def test_c_synthesizer_wrapper_generation():
     assert "_c_func.argtypes = [ctypes.c_double, ctypes.c_double, ctypes.c_longlong]" in wrapper
     assert "_c_func.restype = ctypes.c_longlong" in wrapper
     assert "def mandelbrot_pixel(cr, ci, max_iter):" in wrapper
+
+
+def test_c_variable_scoping_in_conditionals():
+    source = """
+def check_sign(x: float) -> float:
+    if x > 0:
+        val = 1.0
+    else:
+        val = -1.0
+    return val
+"""
+    tree = ast.parse(source)
+    transpiler = ASTToCTranspiler(target_func_name="check_sign")
+    c_code, args, return_type = transpiler.transpile(tree)
+
+    assert "double val = 0.0;" in c_code
+    assert "val = 1.0;" in c_code
+    assert "val = (-1.0);" in c_code
+    assert return_type == "double"
+
+
+def test_c_control_flow_break_continue():
+    source = """
+def loop_test(n: int) -> int:
+    acc = 0
+    for i in range(n):
+        if i == 2:
+            continue
+        if i == 5:
+            break
+        acc += i
+    return acc
+"""
+    tree = ast.parse(source)
+    transpiler = ASTToCTranspiler(target_func_name="loop_test")
+    c_code, args, return_type = transpiler.transpile(tree)
+
+    assert "continue;" in c_code
+    assert "break;" in c_code

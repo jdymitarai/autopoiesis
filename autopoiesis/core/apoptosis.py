@@ -80,20 +80,24 @@ class ApoptoticGate:
                 f"BASELINE_FAILURE: Baseline function crashed on test vectors: {ex}"
             )
 
-        # Baseline benchmark
+        # Baseline benchmark with inner batching to match sandbox timer precision
         first_args, first_kwargs = test_inputs[0]
         # Warmup
-        for _ in range(3):
+        for _ in range(5):
             baseline_fn(*first_args, **first_kwargs)
 
+        inner_batch = 10
         baseline_times: List[int] = []
         for _ in range(self.benchmark_iterations):
             t0 = time.perf_counter_ns()
-            baseline_fn(*first_args, **first_kwargs)
+            for _ in range(inner_batch):
+                baseline_fn(*first_args, **first_kwargs)
             t1 = time.perf_counter_ns()
-            baseline_times.append(t1 - t0)
+            baseline_times.append((t1 - t0) // inner_batch)
 
         mean_baseline_ns = statistics.mean(baseline_times) if baseline_times else 1.0
+        if mean_baseline_ns <= 0:
+            mean_baseline_ns = 1.0
 
         # -------------------------------------------------------------
         # 2. Quarantine Sandbox Execution
@@ -176,8 +180,9 @@ class ApoptoticGate:
             return True
         if a is None or b is None:
             return a == b
-        if isinstance(a, (int, bool)) and isinstance(b, (int, bool)):
-            return a == b
+        # Strict boolean check: booleans must match exactly and not equate to ints/floats
+        if type(a) is bool or type(b) is bool:
+            return type(a) is type(b) and a == b
         if isinstance(a, (float, int)) and isinstance(b, (float, int)):
             fa, fb = float(a), float(b)
             if math.isnan(fa) and math.isnan(fb):

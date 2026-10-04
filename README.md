@@ -5,7 +5,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-17%2F17%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-29%2F29%20passed-brightgreen.svg)]()
 [![Empirical Speedup](https://img.shields.io/badge/empirical%20speedup-14.02x-success.svg)]()
 
 ---
@@ -190,25 +190,37 @@ python -m pytest tests -v
 ```
 
 ```
-tests/test_apoptosis.py::test_apoptosis_semantic_approval PASSED         [  5%]
-tests/test_apoptosis.py::test_apoptosis_rejects_semantic_regression PASSED [ 11%]
-tests/test_apoptosis.py::test_apoptosis_rejects_performance_regression PASSED [ 17%]
-tests/test_ast_optimizer.py::test_ast_optimizer_mutation PASSED          [ 23%]
-tests/test_c_synthesizer.py::test_ast_to_c_transpilation_mandelbrot PASSED [ 29%]
-tests/test_c_synthesizer.py::test_ast_to_c_transpilation_nbody PASSED    [ 35%]
-tests/test_c_synthesizer.py::test_c_synthesizer_wrapper_generation PASSED [ 41%]
-tests/test_chromosome.py::test_chromosome_creation_and_hashing PASSED    [ 47%]
-tests/test_chromosome.py::test_chromosome_serialization PASSED           [ 52%]
-tests/test_chromosome.py::test_lineage_dag PASSED                        [ 58%]
-tests/test_hotspot.py::test_ast_complexity_visitor PASSED                [ 64%]
-tests/test_hotspot.py::test_workload_profiler PASSED                     [ 70%]
-tests/test_hotswap.py::test_atomic_hot_swap_and_rollback PASSED          [ 76%]
-tests/test_organism_lifecycle.py::test_organism_lifecycle_end_to_end PASSED [ 82%]
-tests/test_sandbox.py::test_sandbox_normal_execution PASSED              [ 88%]
-tests/test_sandbox.py::test_sandbox_timeout_quarantine PASSED            [ 94%]
-tests/test_sandbox.py::test_sandbox_exception_handling PASSED            [100%]
+tests/test_apoptosis.py::test_apoptosis_semantic_approval PASSED         [  3%]
+tests/test_apoptosis.py::test_apoptosis_rejects_semantic_regression PASSED [  6%]
+tests/test_apoptosis.py::test_apoptosis_rejects_performance_regression PASSED [ 10%]
+tests/test_apoptosis.py::test_apoptosis_rejects_segfault PASSED          [ 13%]
+tests/test_apoptosis.py::test_apoptosis_rejects_bool_type_mismatch PASSED [ 17%]
+tests/test_ast_optimizer.py::test_ast_optimizer_mutation PASSED          [ 20%]
+tests/test_c_synthesizer.py::test_ast_to_c_transpilation_mandelbrot PASSED [ 24%]
+tests/test_c_synthesizer.py::test_ast_to_c_transpilation_nbody PASSED    [ 27%]
+tests/test_c_synthesizer.py::test_c_synthesizer_wrapper_generation PASSED [ 31%]
+tests/test_c_synthesizer.py::test_c_variable_scoping_in_conditionals PASSED [ 34%]
+tests/test_c_synthesizer.py::test_c_control_flow_break_continue PASSED   [ 37%]
+tests/test_chromosome.py::test_chromosome_creation_and_hashing PASSED    [ 41%]
+tests/test_chromosome.py::test_chromosome_serialization PASSED           [ 44%]
+tests/test_chromosome.py::test_lineage_dag PASSED                        [ 48%]
+tests/test_hotspot.py::test_ast_complexity_visitor PASSED                [ 51%]
+tests/test_hotspot.py::test_workload_profiler PASSED                     [ 55%]
+tests/test_hotswap.py::test_atomic_hot_swap_and_rollback PASSED          [ 58%]
+tests/test_organism_lifecycle.py::test_organism_lifecycle_end_to_end PASSED [ 62%]
+tests/test_organism_lifecycle.py::test_organism_nbody_with_math_lifecycle PASSED [ 65%]
+tests/test_rust_synthesizer.py::test_ast_to_rust_transpilation_mandelbrot PASSED [ 68%]
+tests/test_rust_synthesizer.py::test_ast_to_rust_transpilation_nbody PASSED [ 72%]
+tests/test_rust_synthesizer.py::test_rust_variable_scoping_in_conditionals PASSED [ 75%]
+tests/test_rust_synthesizer.py::test_rust_control_flow_break_continue PASSED [ 79%]
+tests/test_rust_synthesizer.py::test_rust_synthesizer_wrapper_generation PASSED [ 82%]
+tests/test_rust_synthesizer.py::test_rust_compilation_and_execution PASSED [ 86%]
+tests/test_sandbox.py::test_sandbox_normal_execution PASSED              [ 89%]
+tests/test_sandbox.py::test_sandbox_timeout_quarantine PASSED            [ 93%]
+tests/test_sandbox.py::test_sandbox_exception_handling PASSED            [ 96%]
+tests/test_sandbox.py::test_sandbox_segfault_quarantine PASSED           [100%]
 
-============================= 17 passed in 2.54s ==============================
+============================= 29 passed in 5.61s ==============================
 ```
 
 ---

@@ -98,17 +98,50 @@ class ASTToRustTranspiler(ast.NodeVisitor):
             self.func_args.append((arg_name, r_type))
             self.declared_vars[arg_name] = r_type
 
-        # Scan for returns
+        # Collect and hoist all local variable declarations to function scope
+        local_vars: Dict[str, str] = {}
         for child in ast.walk(node):
-            if isinstance(child, ast.Return) and child.value:
-                self.return_type = self._infer_type(child.value)
-                break
+            if isinstance(child, ast.Assign):
+                rhs_t = self._infer_type(child.value)
+                for t in child.targets:
+                    if isinstance(t, ast.Name) and t.id not in self.declared_vars:
+                        local_vars[t.id] = rhs_t
+            elif isinstance(child, ast.AugAssign):
+                if isinstance(child.target, ast.Name) and child.target.id not in self.declared_vars:
+                    local_vars[child.target.id] = self._infer_type(child.value)
+
+        # Register hoisted local variables
+        for var_name, var_type in local_vars.items():
+            self.declared_vars[var_name] = var_type
+
+        # Scan for return type, giving precedence to return annotation
+        if node.returns:
+            ann_str = ast.unparse(node.returns).lower()
+            if "int" in ann_str:
+                self.return_type = "i64"
+            elif "float" in ann_str:
+                self.return_type = "f64"
+            elif "bool" in ann_str:
+                self.return_type = "bool"
+            elif "none" in ann_str or "void" in ann_str:
+                self.return_type = "void"
+        else:
+            for child in ast.walk(node):
+                if isinstance(child, ast.Return) and child.value:
+                    self.return_type = self._infer_type(child.value)
+                    break
 
         arg_sig = ", ".join(f"mut {name}: {t}" for name, t in self.func_args)
+        ret_clause = "" if self.return_type in ("void", "None", "()") else f" -> {self.return_type}"
 
         self.emit("#[no_mangle]")
-        self.emit(f"pub extern \"C\" fn {node.name}({arg_sig}) -> {self.return_type} {{")
+        self.emit(f"pub extern \"C\" fn {node.name}({arg_sig}){ret_clause} {{")
         self.indent_level += 1
+
+        # Emit hoisted variable declarations with default initialization
+        for var_name, var_type in local_vars.items():
+            default_val = "0.0_f64" if var_type == "f64" else "false" if var_type == "bool" else "0_i64"
+            self.emit(f"let mut {var_name}: {var_type} = {default_val};")
 
         for stmt in node.body:
             self.visit(stmt)
@@ -132,6 +165,9 @@ class ASTToRustTranspiler(ast.NodeVisitor):
                     self.emit(f"let mut {var_name}: {rhs_type} = {rhs_expr};")
                 else:
                     self.emit(f"{var_name} = {rhs_expr};")
+            elif isinstance(target, ast.Subscript):
+                target_expr = self._transpile_expr(target)
+                self.emit(f"{target_expr} = {rhs_expr};")
 
     def visit_AugAssign(self, node: ast.AugAssign) -> Any:
         if not self.inside_target:
@@ -139,8 +175,28 @@ class ASTToRustTranspiler(ast.NodeVisitor):
 
         target_str = self._transpile_expr(node.target)
         val_str = self._transpile_expr(node.value)
-        op_str = "+" if isinstance(node.op, ast.Add) else "-" if isinstance(node.op, ast.Sub) else "*" if isinstance(node.op, ast.Mult) else "/"
-        self.emit(f"{target_str} {op_str}= {val_str};")
+        if isinstance(node.op, ast.Pow):
+            self.emit(f"{target_str} = ({target_str}).powf({val_str} as f64);")
+        elif isinstance(node.op, ast.Mod):
+            self.emit(f"{target_str} %= {val_str};")
+        elif isinstance(node.op, ast.Add):
+            self.emit(f"{target_str} += {val_str};")
+        elif isinstance(node.op, ast.Sub):
+            self.emit(f"{target_str} -= {val_str};")
+        elif isinstance(node.op, ast.Mult):
+            self.emit(f"{target_str} *= {val_str};")
+        elif isinstance(node.op, ast.Div):
+            self.emit(f"{target_str} /= {val_str};")
+        else:
+            self.emit(f"{target_str} += {val_str};")
+
+    def visit_Break(self, node: ast.Break) -> Any:
+        if self.inside_target:
+            self.emit("break;")
+
+    def visit_Continue(self, node: ast.Continue) -> Any:
+        if self.inside_target:
+            self.emit("continue;")
 
     def visit_For(self, node: ast.For) -> Any:
         if not self.inside_target:
@@ -223,12 +279,22 @@ class ASTToRustTranspiler(ast.NodeVisitor):
         elif isinstance(node, ast.BinOp):
             left = self._transpile_expr(node.left)
             right = self._transpile_expr(node.right)
+            lt = self._infer_type(node.left)
+            rt = self._infer_type(node.right)
+            if isinstance(node.op, ast.Pow):
+                return f"({left} as f64).powf({right} as f64)"
+            if isinstance(node.op, ast.Div):
+                return f"(({left} as f64) / ({right} as f64))"
+            if isinstance(node.op, ast.FloorDiv):
+                return f"((({left} as f64) / ({right} as f64)).floor() as i64)"
+            if lt == "f64" and rt == "i64":
+                right = f"({right} as f64)"
+            elif lt == "i64" and rt == "f64":
+                left = f"({left} as f64)"
             if isinstance(node.op, ast.Add): return f"({left} + {right})"
             if isinstance(node.op, ast.Sub): return f"({left} - {right})"
             if isinstance(node.op, ast.Mult): return f"({left} * {right})"
-            if isinstance(node.op, ast.Div): return f"({left} / {right})"
             if isinstance(node.op, ast.Mod): return f"({left} % {right})"
-            if isinstance(node.op, ast.Pow): return f"({left}).powf({right})"
             return f"({left} + {right})"
         elif isinstance(node, ast.Compare):
             left = self._transpile_expr(node.left)
@@ -261,12 +327,19 @@ class ASTToRustTranspiler(ast.NodeVisitor):
 class RustSynthesizerMutator(BaseMutator):
     """Mutator transpiling Python bottlenecks into compiled Rust cdylib libraries."""
 
-    def __init__(self, rustc_path: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        rustc_path: Optional[str] = None,
+        extra_flags: Optional[List[str]] = None,
+        name: str = "rust_synthesizer",
+    ) -> None:
         self.rustc_path = rustc_path or shutil.which("rustc")
+        self.extra_flags = extra_flags or ["--crate-type", "cdylib", "-C", "opt-level=3"]
+        self._name = name
 
     @property
     def name(self) -> str:
-        return "rust_synthesizer"
+        return self._name
 
     @property
     def target_source_type(self) -> SourceType:
@@ -282,6 +355,8 @@ class RustSynthesizerMutator(BaseMutator):
         parent_chromosome: Chromosome,
         bottleneck: BottleneckProfile,
         target_dir: Optional[str] = None,
+        generation: Optional[int] = None,
+        parent_id: Optional[str] = None,
     ) -> Optional[Chromosome]:
         if not self.rustc_path:
             return None
@@ -296,8 +371,9 @@ class RustSynthesizerMutator(BaseMutator):
             transpiler = ASTToRustTranspiler(target_func_name=target_symbol)
             rust_code, arg_specs, return_type = transpiler.transpile(tree)
 
-            gen = parent_chromosome.generation + 1
-            rs_filename = f"{target_symbol}_gen{gen}_{parent_chromosome.id[:6]}.rs"
+            gen = generation if generation is not None else parent_chromosome.generation + 1
+            p_id = parent_id if parent_id is not None else parent_chromosome.id
+            rs_filename = f"{target_symbol}_gen{gen}_{p_id[:6]}.rs"
             rs_path = os.path.join(out_dir, rs_filename)
 
             with open(rs_path, "w", encoding="utf-8") as f:
@@ -305,20 +381,11 @@ class RustSynthesizerMutator(BaseMutator):
 
             is_windows = platform.system() == "Windows"
             ext = ".dll" if is_windows else ".so"
-            lib_filename = f"librust_{target_symbol}_gen{gen}_{parent_chromosome.id[:6]}{ext}"
+            lib_filename = f"librust_{target_symbol}_gen{gen}_{p_id[:6]}{ext}"
             lib_path = os.path.join(out_dir, lib_filename)
 
-            # Compile invocation: rustc --crate-type cdylib -C opt-level=3
-            compile_cmd = [
-                self.rustc_path,
-                "--crate-type",
-                "cdylib",
-                "-C",
-                "opt-level=3",
-                rs_path,
-                "-o",
-                lib_path,
-            ]
+            # Compile invocation: rustc with configured flags
+            compile_cmd = [self.rustc_path] + self.extra_flags + [rs_path, "-o", lib_path]
 
             res = subprocess.run(compile_cmd, capture_output=True, text=True, timeout=20)
             if res.returncode != 0:
@@ -331,9 +398,9 @@ class RustSynthesizerMutator(BaseMutator):
                 source_type=SourceType.RUST_CDYLIB,
                 entry_symbol=target_symbol,
                 code=wrapper_code,
-                parent_id=parent_chromosome.id,
+                parent_id=p_id,
                 compiled_artifact_path=lib_path,
-                compiler_flags=["--crate-type", "cdylib", "-C", "opt-level=3"],
+                compiler_flags=self.extra_flags,
                 mutation_meta={
                     "mutator": self.name,
                     "rust_source_path": rs_path,
@@ -355,6 +422,8 @@ class RustSynthesizerMutator(BaseMutator):
             "f64": "ctypes.c_double",
             "i64": "ctypes.c_longlong",
             "bool": "ctypes.c_bool",
+            "void": "None",
+            "()": "None",
         }
 
         arg_types = ", ".join(rust_to_ctypes.get(t, "ctypes.c_double") for _, t in arg_specs)

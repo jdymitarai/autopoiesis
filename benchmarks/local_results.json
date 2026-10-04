@@ -5,66 +5,66 @@
     "metrics": [
       {
         "generation": 0,
-        "chromosome_id": "03987010c2f57b27",
+        "chromosome_id": "f8bd6e9fb0885678",
         "source_type": "PYTHON_AST",
         "mutator_name": "BASELINE",
-        "latency_ns": 7020.0,
+        "latency_ns": 6630.0,
         "speedup_vs_baseline": 1.0,
         "cpu_percent": 0.0,
-        "memory_rss_mb": 36.703125,
-        "timestamp": 1791112909.8025725
+        "memory_rss_mb": 36.92578125,
+        "timestamp": 1791113700.2055643
       },
       {
         "generation": 1,
-        "chromosome_id": "fb2333151008ec8f",
+        "chromosome_id": "4164cf3b21fe039a",
         "source_type": "RUST_CDYLIB",
         "mutator_name": "rust_synthesizer",
-        "latency_ns": 965.0,
-        "speedup_vs_baseline": 7.274611398963731,
-        "cpu_percent": 16.4,
-        "memory_rss_mb": 40.9140625,
-        "timestamp": 1791112910.3731904
+        "latency_ns": 927.0,
+        "speedup_vs_baseline": 7.15210355987055,
+        "cpu_percent": 5.4,
+        "memory_rss_mb": 41.02734375,
+        "timestamp": 1791113700.7843316
       }
     ],
     "lineage": {
       "chromosomes": {
-        "03987010c2f57b27": {
-          "id": "03987010c2f57b27",
+        "f8bd6e9fb0885678": {
+          "id": "f8bd6e9fb0885678",
           "generation": 0,
           "parent_id": null,
           "source_type": "PYTHON_AST",
           "entry_symbol": "mandelbrot_pixel",
-          "code": "def mandelbrot_pixel(cr: float, ci: float, max_iter: int) -> int:\n    \"\"\"Escape-time Mandelbrot calculation for a single complex coordinate.\"\"\"\n    zr = 0.0\n    zi = 0.0\n    for i in range(max_iter):\n        zr2 = zr * zr\n        zi2 = zi * zi\n        if zr2 + zi2 > 4.0:\n            return i\n        zi = 2.0 * zr * zi + ci\n        zr = zr2 - zi2 + cr\n    return max_iter\n",
+          "code": "from typing import Any, List, Tuple\n\ndef mandelbrot_pixel(cr: float, ci: float, max_iter: int) -> int:\n    \"\"\"Escape-time Mandelbrot calculation for a single complex coordinate.\"\"\"\n    zr = 0.0\n    zi = 0.0\n    for i in range(max_iter):\n        zr2 = zr * zr\n        zi2 = zi * zi\n        if zr2 + zi2 > 4.0:\n            return i\n        zi = 2.0 * zr * zi + ci\n        zr = zr2 - zi2 + cr\n    return max_iter\n",
           "compiled_artifact_path": null,
           "compiler_flags": [],
           "fitness": 1.0,
-          "mean_latency_ns": 7020.0,
+          "mean_latency_ns": 6630.0,
           "mutation_meta": {
             "mutator": "ORIGINAL_PHENOTYPE"
           },
-          "timestamp": 1791112909.8025234,
+          "timestamp": 1791113700.205513,
           "is_viable": true
         },
-        "fb2333151008ec8f": {
-          "id": "fb2333151008ec8f",
+        "4164cf3b21fe039a": {
+          "id": "4164cf3b21fe039a",
           "generation": 1,
-          "parent_id": "03987010c2f57b27",
+          "parent_id": "f8bd6e9fb0885678",
           "source_type": "RUST_CDYLIB",
           "entry_symbol": "mandelbrot_pixel",
           "code": "import ctypes\n\n_c_func = lib.mandelbrot_pixel\n_c_func.argtypes = [ctypes.c_double, ctypes.c_double, ctypes.c_longlong]\n_c_func.restype = ctypes.c_longlong\n\ndef mandelbrot_pixel(cr, ci, max_iter):\n    return _c_func(ctypes.c_double(cr), ctypes.c_double(ci), ctypes.c_longlong(max_iter))",
-          "compiled_artifact_path": "C:\\ai\\autopoiesis\\benchmarks\\artifacts\\librust_mandelbrot_pixel_gen1_039870.dll",
+          "compiled_artifact_path": "C:\\ai\\autopoiesis\\benchmarks\\artifacts\\librust_mandelbrot_pixel_gen1_f8bd6e.dll",
           "compiler_flags": [
             "--crate-type",
             "cdylib",
             "-C",
             "opt-level=3"
           ],
-          "fitness": 7.290155440414508,
-          "mean_latency_ns": 965.0,
+          "fitness": 7.415857605177994,
+          "mean_latency_ns": 927.0,
           "mutation_meta": {
             "mutator": "rust_synthesizer",
-            "rust_source_path": "C:\\ai\\autopoiesis\\benchmarks\\artifacts\\mandelbrot_pixel_gen1_039870.rs",
-            "rust_code": "// Auto-synthesized by Autopoiesis Engine\n#![allow(unused_variables, unused_mut, non_snake_case)]\n\n#[no_mangle]\npub extern \"C\" fn mandelbrot_pixel(mut cr: f64, mut ci: f64, mut max_iter: i64) -> i64 {\n    let mut zr: f64 = 0.0_f64;\n    let mut zi: f64 = 0.0_f64;\n    for i in (0 as i64)..(max_iter as i64) {\n        let mut zr2: f64 = (zr * zr);\n        let mut zi2: f64 = (zi * zi);\n        if (zr2 + zi2) > 4.0_f64 {\n            return (i) as i64;\n        }\n        zi = (((2.0_f64 * zr) * zi) + ci);\n        zr = ((zr2 - zi2) + cr);\n    }\n    return (max_iter) as i64;\n}",
+            "rust_source_path": "C:\\ai\\autopoiesis\\benchmarks\\artifacts\\mandelbrot_pixel_gen1_f8bd6e.rs",
+            "rust_code": "// Auto-synthesized by Autopoiesis Engine\n#![allow(unused_variables, unused_mut, non_snake_case)]\n\n#[no_mangle]\npub extern \"C\" fn mandelbrot_pixel(mut cr: f64, mut ci: f64, mut max_iter: i64) -> i64 {\n    let mut zr: f64 = 0.0_f64;\n    let mut zi: f64 = 0.0_f64;\n    let mut zr2: f64 = 0.0_f64;\n    let mut zi2: f64 = 0.0_f64;\n    zr = 0.0_f64;\n    zi = 0.0_f64;\n    for i in (0 as i64)..(max_iter as i64) {\n        zr2 = (zr * zr);\n        zi2 = (zi * zi);\n        if (zr2 + zi2) > 4.0_f64 {\n            return (i) as i64;\n        }\n        zi = (((2.0_f64 * zr) * zi) + ci);\n        zr = ((zr2 - zi2) + cr);\n    }\n    return (max_iter) as i64;\n}",
             "arg_specs": [
               [
                 "cr",
@@ -81,22 +81,33 @@
             ],
             "return_type": "i64"
           },
-          "timestamp": 1791112910.0915585,
+          "timestamp": 1791113700.6364343,
           "is_viable": true
         }
       },
-      "active_id": "fb2333151008ec8f",
+      "active_id": "4164cf3b21fe039a",
       "mutation_history": [
         {
-          "parent_id": "03987010c2f57b27",
-          "candidate_id": "fb2333151008ec8f",
+          "parent_id": "f8bd6e9fb0885678",
+          "candidate_id": "f975d352a52cf0c4",
+          "generation": 1,
+          "mutator_name": "ast_optimizer",
+          "target_symbol": "mandelbrot_pixel",
+          "accepted": false,
+          "speedup": 0.0,
+          "rejection_reason": "PERFORMANCE_REGRESSION: Measured speedup 0.91x below threshold 1.02x (Baseline: 0.007ms, Candidate: 0.007ms)",
+          "timestamp": 1791113700.3648922
+        },
+        {
+          "parent_id": "f8bd6e9fb0885678",
+          "candidate_id": "4164cf3b21fe039a",
           "generation": 1,
           "mutator_name": "rust_synthesizer",
           "target_symbol": "mandelbrot_pixel",
           "accepted": true,
-          "speedup": 7.290155440414508,
+          "speedup": 7.415857605177994,
           "rejection_reason": null,
-          "timestamp": 1791112910.372605
+          "timestamp": 1791113700.7837188
         }
       ]
     }
@@ -107,66 +118,66 @@
     "metrics": [
       {
         "generation": 0,
-        "chromosome_id": "b35b92f1b42b04fc",
+        "chromosome_id": "e666a17c11730b67",
         "source_type": "PYTHON_AST",
         "mutator_name": "BASELINE",
-        "latency_ns": 9025.0,
+        "latency_ns": 9320.0,
         "speedup_vs_baseline": 1.0,
         "cpu_percent": 0.0,
-        "memory_rss_mb": 40.9453125,
-        "timestamp": 1791112910.404234
+        "memory_rss_mb": 41.1953125,
+        "timestamp": 1791113700.8237946
       },
       {
         "generation": 1,
-        "chromosome_id": "e3710642899a9ec1",
+        "chromosome_id": "ab6fe600d54e0abb",
         "source_type": "RUST_CDYLIB",
         "mutator_name": "rust_synthesizer",
-        "latency_ns": 635.0,
-        "speedup_vs_baseline": 14.21259842519685,
-        "cpu_percent": 4.1,
-        "memory_rss_mb": 40.546875,
-        "timestamp": 1791112910.7842479
+        "latency_ns": 613.0,
+        "speedup_vs_baseline": 15.203915171288743,
+        "cpu_percent": 8.4,
+        "memory_rss_mb": 40.66015625,
+        "timestamp": 1791113701.379537
       }
     ],
     "lineage": {
       "chromosomes": {
-        "b35b92f1b42b04fc": {
-          "id": "b35b92f1b42b04fc",
+        "e666a17c11730b67": {
+          "id": "e666a17c11730b67",
           "generation": 0,
           "parent_id": null,
           "source_type": "PYTHON_AST",
           "entry_symbol": "nbody_simulation_energy",
-          "code": "def nbody_simulation_energy(n: int, steps: int) -> float:\n    \"\"\"Simulates N-body system interaction and computes total potential energy proxy.\"\"\"\n    energy = 0.0\n    softening = 0.01\n    for s in range(steps):\n        for i in range(n):\n            xi = float(i) * 0.1\n            yi = float(i) * 0.2\n            zi = float(i) * 0.3\n            for j in range(n):\n                if i != j:\n                    xj = float(j) * 0.1\n                    yj = float(j) * 0.2\n                    zj = float(j) * 0.3\n                    dx = xj - xi\n                    dy = yj - yi\n                    dz = zj - zi\n                    dist_sq = (dx * dx) + (dy * dy) + (dz * dz) + (softening * softening)\n                    dist = math.sqrt(dist_sq)\n                    energy += 1.0 / dist\n    return energy\n",
+          "code": "import math\nfrom typing import Any, List, Tuple\n\ndef nbody_simulation_energy(n: int, steps: int) -> float:\n    \"\"\"Simulates N-body system interaction and computes total potential energy proxy.\"\"\"\n    energy = 0.0\n    softening = 0.01\n    for s in range(steps):\n        for i in range(n):\n            xi = float(i) * 0.1\n            yi = float(i) * 0.2\n            zi = float(i) * 0.3\n            for j in range(n):\n                if i != j:\n                    xj = float(j) * 0.1\n                    yj = float(j) * 0.2\n                    zj = float(j) * 0.3\n                    dx = xj - xi\n                    dy = yj - yi\n                    dz = zj - zi\n                    dist_sq = (dx * dx) + (dy * dy) + (dz * dz) + (softening * softening)\n                    dist = math.sqrt(dist_sq)\n                    energy += 1.0 / dist\n    return energy\n",
           "compiled_artifact_path": null,
           "compiler_flags": [],
           "fitness": 1.0,
-          "mean_latency_ns": 9025.0,
+          "mean_latency_ns": 9320.0,
           "mutation_meta": {
             "mutator": "ORIGINAL_PHENOTYPE"
           },
-          "timestamp": 1791112910.4041939,
+          "timestamp": 1791113700.8237522,
           "is_viable": true
         },
-        "e3710642899a9ec1": {
-          "id": "e3710642899a9ec1",
+        "ab6fe600d54e0abb": {
+          "id": "ab6fe600d54e0abb",
           "generation": 1,
-          "parent_id": "b35b92f1b42b04fc",
+          "parent_id": "e666a17c11730b67",
           "source_type": "RUST_CDYLIB",
           "entry_symbol": "nbody_simulation_energy",
           "code": "import ctypes\n\n_c_func = lib.nbody_simulation_energy\n_c_func.argtypes = [ctypes.c_longlong, ctypes.c_longlong]\n_c_func.restype = ctypes.c_double\n\ndef nbody_simulation_energy(n, steps):\n    return _c_func(ctypes.c_longlong(n), ctypes.c_longlong(steps))",
-          "compiled_artifact_path": "C:\\ai\\autopoiesis\\benchmarks\\artifacts\\librust_nbody_simulation_energy_gen1_b35b92.dll",
+          "compiled_artifact_path": "C:\\ai\\autopoiesis\\benchmarks\\artifacts\\librust_nbody_simulation_energy_gen1_e666a1.dll",
           "compiler_flags": [
             "--crate-type",
             "cdylib",
             "-C",
             "opt-level=3"
           ],
-          "fitness": 17.165354330708663,
-          "mean_latency_ns": 635.0,
+          "fitness": 21.13784665579119,
+          "mean_latency_ns": 613.0,
           "mutation_meta": {
             "mutator": "rust_synthesizer",
-            "rust_source_path": "C:\\ai\\autopoiesis\\benchmarks\\artifacts\\nbody_simulation_energy_gen1_b35b92.rs",
-            "rust_code": "// Auto-synthesized by Autopoiesis Engine\n#![allow(unused_variables, unused_mut, non_snake_case)]\n\n#[no_mangle]\npub extern \"C\" fn nbody_simulation_energy(mut n: i64, mut steps: i64) -> f64 {\n    let mut energy: f64 = 0.0_f64;\n    let mut softening: f64 = 0.01_f64;\n    for s in (0 as i64)..(steps as i64) {\n        for i in (0 as i64)..(n as i64) {\n            let mut xi: f64 = ((i as f64) * 0.1_f64);\n            let mut yi: f64 = ((i as f64) * 0.2_f64);\n            let mut zi: f64 = ((i as f64) * 0.3_f64);\n            for j in (0 as i64)..(n as i64) {\n                if i != j {\n                    let mut xj: f64 = ((j as f64) * 0.1_f64);\n                    let mut yj: f64 = ((j as f64) * 0.2_f64);\n                    let mut zj: f64 = ((j as f64) * 0.3_f64);\n                    let mut dx: f64 = (xj - xi);\n                    let mut dy: f64 = (yj - yi);\n                    let mut dz: f64 = (zj - zi);\n                    let mut dist_sq: f64 = ((((dx * dx) + (dy * dy)) + (dz * dz)) + (softening * softening));\n                    let mut dist: f64 = (dist_sq).sqrt();\n                    energy += (1.0_f64 / dist);\n                }\n            }\n        }\n    }\n    return (energy) as f64;\n}",
+            "rust_source_path": "C:\\ai\\autopoiesis\\benchmarks\\artifacts\\nbody_simulation_energy_gen1_e666a1.rs",
+            "rust_code": "// Auto-synthesized by Autopoiesis Engine\n#![allow(unused_variables, unused_mut, non_snake_case)]\n\n#[no_mangle]\npub extern \"C\" fn nbody_simulation_energy(mut n: i64, mut steps: i64) -> f64 {\n    let mut energy: f64 = 0.0_f64;\n    let mut softening: f64 = 0.0_f64;\n    let mut xi: f64 = 0.0_f64;\n    let mut yi: f64 = 0.0_f64;\n    let mut zi: f64 = 0.0_f64;\n    let mut xj: f64 = 0.0_f64;\n    let mut yj: f64 = 0.0_f64;\n    let mut zj: f64 = 0.0_f64;\n    let mut dx: f64 = 0.0_f64;\n    let mut dy: f64 = 0.0_f64;\n    let mut dz: f64 = 0.0_f64;\n    let mut dist_sq: f64 = 0.0_f64;\n    let mut dist: f64 = 0.0_f64;\n    energy = 0.0_f64;\n    softening = 0.01_f64;\n    for s in (0 as i64)..(steps as i64) {\n        for i in (0 as i64)..(n as i64) {\n            xi = ((i as f64) * 0.1_f64);\n            yi = ((i as f64) * 0.2_f64);\n            zi = ((i as f64) * 0.3_f64);\n            for j in (0 as i64)..(n as i64) {\n                if i != j {\n                    xj = ((j as f64) * 0.1_f64);\n                    yj = ((j as f64) * 0.2_f64);\n                    zj = ((j as f64) * 0.3_f64);\n                    dx = (xj - xi);\n                    dy = (yj - yi);\n                    dz = (zj - zi);\n                    dist_sq = ((((dx * dx) + (dy * dy)) + (dz * dz)) + (softening * softening));\n                    dist = (dist_sq).sqrt();\n                    energy += ((1.0_f64 as f64) / (dist as f64));\n                }\n            }\n        }\n    }\n    return (energy) as f64;\n}",
             "arg_specs": [
               [
                 "n",
@@ -179,22 +190,33 @@
             ],
             "return_type": "f64"
           },
-          "timestamp": 1791112910.6085532,
+          "timestamp": 1791113701.1857145,
           "is_viable": true
         }
       },
-      "active_id": "e3710642899a9ec1",
+      "active_id": "ab6fe600d54e0abb",
       "mutation_history": [
         {
-          "parent_id": "b35b92f1b42b04fc",
-          "candidate_id": "e3710642899a9ec1",
+          "parent_id": "e666a17c11730b67",
+          "candidate_id": "03e93b1a9a5ec24a",
+          "generation": 1,
+          "mutator_name": "ast_optimizer",
+          "target_symbol": "nbody_simulation_energy",
+          "accepted": false,
+          "speedup": 0.0,
+          "rejection_reason": "PERFORMANCE_REGRESSION: Measured speedup 0.99x below threshold 1.02x (Baseline: 0.009ms, Candidate: 0.009ms)",
+          "timestamp": 1791113700.958459
+        },
+        {
+          "parent_id": "e666a17c11730b67",
+          "candidate_id": "ab6fe600d54e0abb",
           "generation": 1,
           "mutator_name": "rust_synthesizer",
           "target_symbol": "nbody_simulation_energy",
           "accepted": true,
-          "speedup": 17.165354330708663,
+          "speedup": 21.13784665579119,
           "rejection_reason": null,
-          "timestamp": 1791112910.783646
+          "timestamp": 1791113701.3789644
         }
       ]
     }

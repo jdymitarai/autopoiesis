@@ -104,7 +104,11 @@ class GlobalLookupOptimizer(ast.NodeTransformer):
                 ast.copy_location(assign_node, node)
                 injected_assigns.append(assign_node)
 
-            node.body = injected_assigns + node.body
+            # Preserve docstring if present as first statement
+            insert_idx = 0
+            if node.body and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant) and isinstance(node.body[0].value.value, str):
+                insert_idx = 1
+            node.body = node.body[:insert_idx] + injected_assigns + node.body[insert_idx:]
 
         return node
 
@@ -128,6 +132,8 @@ class ASTOptimizerMutator(BaseMutator):
         parent_chromosome: Chromosome,
         bottleneck: BottleneckProfile,
         target_dir: Optional[str] = None,
+        generation: Optional[int] = None,
+        parent_id: Optional[str] = None,
     ) -> Optional[Chromosome]:
         try:
             tree = ast.parse(parent_chromosome.code)
@@ -141,15 +147,31 @@ class ASTOptimizerMutator(BaseMutator):
             lookup_opt = GlobalLookupOptimizer(target_func_name=target_symbol)
             tree = lookup_opt.visit(tree)
 
+            # 3. Ensure standard imports (e.g. math) exist if referenced
+            has_math_ref = any(
+                isinstance(n, ast.Name) and n.id == "math"
+                for n in ast.walk(tree)
+            )
+            has_math_import = any(
+                (isinstance(n, ast.Import) and any(alias.name == "math" for alias in n.names)) or
+                (isinstance(n, ast.ImportFrom) and n.module == "math")
+                for n in ast.walk(tree)
+            )
+            if has_math_ref and not has_math_import:
+                tree.body.insert(0, ast.Import(names=[ast.alias(name="math", asname=None)]))
+
             ast.fix_missing_locations(tree)
             optimized_code = ast.unparse(tree)
 
+            gen = generation if generation is not None else parent_chromosome.generation + 1
+            p_id = parent_id if parent_id is not None else parent_chromosome.id
+
             return Chromosome.create(
-                generation=parent_chromosome.generation + 1,
+                generation=gen,
                 source_type=SourceType.PYTHON_AST,
                 entry_symbol=target_symbol,
                 code=optimized_code,
-                parent_id=parent_chromosome.id,
+                parent_id=p_id,
                 mutation_meta={
                     "mutator": self.name,
                     "cached_builtins": list(lookup_opt.used_builtins),

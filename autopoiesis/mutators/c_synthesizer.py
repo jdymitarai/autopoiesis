@@ -106,11 +106,38 @@ class ASTToCTranspiler(ast.NodeVisitor):
             self.func_args.append((arg_name, c_type))
             self.declared_vars[arg_name] = c_type
 
-        # Scan body for returns to infer return type
+        # Collect and hoist all local variable declarations to function scope
+        local_vars: Dict[str, str] = {}
         for child in ast.walk(node):
-            if isinstance(child, ast.Return) and child.value:
-                self.return_type = self._infer_type(child.value)
-                break
+            if isinstance(child, ast.Assign):
+                rhs_t = self._infer_type(child.value)
+                for t in child.targets:
+                    if isinstance(t, ast.Name) and t.id not in self.declared_vars:
+                        local_vars[t.id] = rhs_t
+            elif isinstance(child, ast.AugAssign):
+                if isinstance(child.target, ast.Name) and child.target.id not in self.declared_vars:
+                    local_vars[child.target.id] = self._infer_type(child.value)
+
+        # Register hoisted local variables
+        for var_name, var_type in local_vars.items():
+            self.declared_vars[var_name] = var_type
+
+        # Scan for return type, giving precedence to return annotation
+        if node.returns:
+            ann_str = ast.unparse(node.returns).lower()
+            if "int" in ann_str:
+                self.return_type = "int64_t"
+            elif "float" in ann_str:
+                self.return_type = "double"
+            elif "bool" in ann_str:
+                self.return_type = "bool"
+            elif "none" in ann_str or "void" in ann_str:
+                self.return_type = "void"
+        else:
+            for child in ast.walk(node):
+                if isinstance(child, ast.Return) and child.value:
+                    self.return_type = self._infer_type(child.value)
+                    break
 
         arg_sig = ", ".join(f"{t} {name}" for name, t in self.func_args)
         if not arg_sig:
@@ -118,6 +145,11 @@ class ASTToCTranspiler(ast.NodeVisitor):
 
         self.emit(f"EXPORT {self.return_type} {node.name}({arg_sig}) {{")
         self.indent_level += 1
+
+        # Emit hoisted variable declarations with default initialization
+        for var_name, var_type in local_vars.items():
+            default_val = "0.0" if var_type == "double" else "false" if var_type == "bool" else "0"
+            self.emit(f"{var_type} {var_name} = {default_val};")
 
         for stmt in node.body:
             self.visit(stmt)
@@ -151,8 +183,19 @@ class ASTToCTranspiler(ast.NodeVisitor):
 
         target_str = self._transpile_expr(node.target)
         val_str = self._transpile_expr(node.value)
-        op_str = self._get_op_str(node.op)
-        self.emit(f"{target_str} {op_str}= {val_str};")
+        if isinstance(node.op, ast.Pow):
+            self.emit(f"{target_str} = pow({target_str}, {val_str});")
+        else:
+            op_str = self._get_op_str(node.op)
+            self.emit(f"{target_str} {op_str}= {val_str};")
+
+    def visit_Break(self, node: ast.Break) -> Any:
+        if self.inside_target:
+            self.emit("break;")
+
+    def visit_Continue(self, node: ast.Continue) -> Any:
+        if self.inside_target:
+            self.emit("continue;")
 
     def visit_For(self, node: ast.For) -> Any:
         if not self.inside_target:
@@ -250,6 +293,10 @@ class ASTToCTranspiler(ast.NodeVisitor):
             right = self._transpile_expr(node.right)
             if isinstance(node.op, ast.Pow):
                 return f"pow({left}, {right})"
+            if isinstance(node.op, ast.Div):
+                return f"(((double)({left})) / ((double)({right})))"
+            if isinstance(node.op, ast.FloorDiv):
+                return f"floor(((double)({left})) / ((double)({right})))"
             op_str = self._get_op_str(node.op)
             return f"({left} {op_str} {right})"
         elif isinstance(node, ast.Compare):
@@ -302,13 +349,19 @@ class ASTToCTranspiler(ast.NodeVisitor):
 class CSynthesizerMutator(BaseMutator):
     """Mutator that transpiles Python AST bottlenecks into C99 shared libraries."""
 
-    def __init__(self, compiler: Optional[str] = None, extra_flags: Optional[List[str]] = None) -> None:
+    def __init__(
+        self,
+        compiler: Optional[str] = None,
+        extra_flags: Optional[List[str]] = None,
+        name: str = "c_synthesizer",
+    ) -> None:
         self.compiler = compiler or self._detect_c_compiler()
         self.extra_flags = extra_flags or ["-O3", "-fPIC", "-shared", "-ffast-math"]
+        self._name = name
 
     @property
     def name(self) -> str:
-        return "c_synthesizer"
+        return self._name
 
     @property
     def target_source_type(self) -> SourceType:
@@ -331,6 +384,8 @@ class CSynthesizerMutator(BaseMutator):
         parent_chromosome: Chromosome,
         bottleneck: BottleneckProfile,
         target_dir: Optional[str] = None,
+        generation: Optional[int] = None,
+        parent_id: Optional[str] = None,
     ) -> Optional[Chromosome]:
         if not self.compiler:
             return None
@@ -346,8 +401,9 @@ class CSynthesizerMutator(BaseMutator):
             c_code, arg_specs, return_type = transpiler.transpile(tree)
 
             # Generate C source file
-            gen = parent_chromosome.generation + 1
-            c_filename = f"{target_symbol}_gen{gen}_{parent_chromosome.id[:6]}.c"
+            gen = generation if generation is not None else parent_chromosome.generation + 1
+            p_id = parent_id if parent_id is not None else parent_chromosome.id
+            c_filename = f"{target_symbol}_gen{gen}_{p_id[:6]}.c"
             c_path = os.path.join(out_dir, c_filename)
 
             with open(c_path, "w", encoding="utf-8") as f:
@@ -356,7 +412,7 @@ class CSynthesizerMutator(BaseMutator):
             # Determine dynamic library extension
             is_windows = platform.system() == "Windows"
             ext = ".dll" if is_windows else ".so"
-            lib_filename = f"lib{target_symbol}_gen{gen}_{parent_chromosome.id[:6]}{ext}"
+            lib_filename = f"lib{target_symbol}_gen{gen}_{p_id[:6]}{ext}"
             lib_path = os.path.join(out_dir, lib_filename)
 
             # Compile invocation
@@ -380,7 +436,7 @@ class CSynthesizerMutator(BaseMutator):
                 source_type=SourceType.C_EXTENSION,
                 entry_symbol=target_symbol,
                 code=wrapper_code,
-                parent_id=parent_chromosome.id,
+                parent_id=p_id,
                 compiled_artifact_path=lib_path,
                 compiler_flags=self.extra_flags,
                 mutation_meta={

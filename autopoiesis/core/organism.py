@@ -65,14 +65,31 @@ class LivingOrganism:
 
     def _initialize_gen0(self) -> None:
         """Extracts source code of baseline phenotype and measures initial latency."""
+        import ast
         import textwrap
         orig_fn = getattr(self.target_module, self.target_symbol)
-        source = textwrap.dedent(inspect.getsource(orig_fn))
+        fn_source = textwrap.dedent(inspect.getsource(orig_fn))
+
+        # Extract module-level imports so the chromosome code is self-contained
+        import_header = ""
+        try:
+            mod_source = inspect.getsource(self.target_module)
+            mod_tree = ast.parse(mod_source)
+            import_nodes = [
+                n for n in mod_tree.body
+                if isinstance(n, (ast.Import, ast.ImportFrom)) and not (isinstance(n, ast.ImportFrom) and n.module == "__future__")
+            ]
+            if import_nodes:
+                import_header = ast.unparse(ast.Module(body=import_nodes, type_ignores=[])) + "\n\n"
+        except Exception:
+            pass
+
+        source = (import_header + fn_source).strip() + "\n"
 
         # Measure baseline latency
         first_args, first_kwargs = self.test_vectors[0]
         # Warmup
-        for _ in range(3):
+        for _ in range(5):
             orig_fn(*first_args, **first_kwargs)
 
         t0 = time.perf_counter_ns()
@@ -147,14 +164,15 @@ class LivingOrganism:
             if not mutator.can_mutate(bottleneck):
                 continue
 
-            # Mutator may not repeat or degrade if already evolved to native
+            # Mutator may not degrade if parent already evolved to native
             if parent.source_type in (SourceType.C_EXTENSION, SourceType.RUST_CDYLIB) and mutator.target_source_type == SourceType.PYTHON_AST:
                 continue
 
-            if parent.source_type == mutator.target_source_type:
+            # Do not re-run the exact mutator that produced the active parent
+            if parent.mutation_meta.get("mutator") == mutator.name:
                 continue
 
-            # Use root Python chromosome for native transpilers
+            # Use root Python chromosome for native transpilers since AST optimizer injects Python-only builtins
             blueprint_parent = (
                 root_chromosome
                 if mutator.target_source_type in (SourceType.C_EXTENSION, SourceType.RUST_CDYLIB)
@@ -162,12 +180,15 @@ class LivingOrganism:
             )
 
             # Generate candidate
-            candidate = mutator.mutate(blueprint_parent, bottleneck, target_dir=self.artifacts_dir)
+            candidate = mutator.mutate(
+                blueprint_parent,
+                bottleneck,
+                target_dir=self.artifacts_dir,
+                generation=gen,
+                parent_id=parent.id,
+            )
             if not candidate:
                 continue
-
-            candidate.generation = gen
-            candidate.parent_id = parent.id
 
             # Apoptotic Gate Verification
             verdict: ApoptosisVerdict = self.apoptotic_gate.verify_candidate(
@@ -196,8 +217,9 @@ class LivingOrganism:
                 self.lineage_dag.add_chromosome(candidate, set_active=True)
 
                 # Track telemetry
-                base_lat = self.lineage_dag.chromosomes[self.lineage_dag.get_ancestors(candidate.id)[0].id].mean_latency_ns
-                cumulative_speedup = base_lat / candidate.mean_latency_ns if candidate.mean_latency_ns > 0 else 1.0
+                active_ancestors = self.lineage_dag.get_ancestors(candidate.id)
+                base_lat = active_ancestors[0].mean_latency_ns if active_ancestors else candidate.mean_latency_ns
+                cumulative_speedup = (base_lat / candidate.mean_latency_ns) if (candidate.mean_latency_ns > 0 and base_lat > 0) else 1.0
 
                 self.telemetry.record_generation(
                     generation=gen,

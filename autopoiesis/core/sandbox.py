@@ -40,6 +40,15 @@ import base64
 import pickle
 import traceback
 import ctypes
+import math
+
+if sys.platform == 'win32':
+    try:
+        # Disable Windows Error Reporting crash popup dialogs
+        # 0x0001 = SEM_FAILCRITICALERRORS, 0x0002 = SEM_NOGPFAULTERRORBOX
+        ctypes.windll.kernel32.SetErrorMode(0x0001 | 0x0002)
+    except Exception:
+        pass
 
 def main():
     try:
@@ -58,7 +67,7 @@ def main():
         target_fn = None
         
         if source_type == "PYTHON_AST":
-            namespace = {}
+            namespace = {"math": math, "sys": sys, "os": os, "time": time}
             exec(code, namespace)
             target_fn = namespace[entry_symbol]
         elif source_type in ("C_EXTENSION", "RUST_CDYLIB"):
@@ -69,7 +78,7 @@ def main():
             lib = ctypes.CDLL(artifact_path)
             
             # Execute wrapper code that binds ctypes signatures
-            namespace = {"ctypes": ctypes, "lib": lib}
+            namespace = {"ctypes": ctypes, "lib": lib, "math": math}
             exec(code, namespace)
             target_fn = namespace[entry_symbol]
         else:
@@ -83,19 +92,21 @@ def main():
             res = target_fn(*args, **kwargs)
             outputs.append(res)
             
-        # Phase 2: High-resolution hardware timing
+        # Phase 2: High-resolution hardware timing with inner batching
         if test_inputs and benchmark_repeats > 0:
             first_args, first_kwargs = test_inputs[0]
             # Warmup
-            for _ in range(3):
+            for _ in range(5):
                 target_fn(*first_args, **first_kwargs)
             
+            inner_batch = 10
             # Measured runs
             for _ in range(benchmark_repeats):
                 t0 = time.perf_counter_ns()
-                target_fn(*first_args, **first_kwargs)
+                for _ in range(inner_batch):
+                    target_fn(*first_args, **first_kwargs)
                 t1 = time.perf_counter_ns()
-                runtimes.append(t1 - t0)
+                runtimes.append((t1 - t0) // inner_batch)
                 
         result = {
             "success": True,
@@ -169,14 +180,15 @@ class IsolatedProcessSandbox:
             # Check for crash signals (Segfault: -11 on Unix, 0xC0000005 on Windows)
             is_segfault = False
             if ret_code != 0:
-                if ret_code in (-11, -8, -4, 139, 3221225477, -1073741819):  # 0xC0000005 = 3221225477
+                unsigned_ret = ret_code & 0xFFFFFFFF
+                if ret_code in (-11, -8, -4, 139) or unsigned_ret in (0xC0000005, 0xC000001D, 0xC000008E, 0xC0000094):
                     is_segfault = True
                 return SandboxExecutionResult(
                     success=False,
                     exit_code=ret_code,
                     segfault_detected=is_segfault,
                     error_type="SEGFAULT" if is_segfault else "PROCESS_CRASH",
-                    error_message=f"Process terminated with exit code {ret_code}. stderr: {stderr.strip()}",
+                    error_message=f"Process terminated with exit code {ret_code} (0x{unsigned_ret:08X}). stderr: {stderr.strip()}",
                 )
 
             # Parse sandbox output

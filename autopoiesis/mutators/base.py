@@ -37,6 +37,8 @@ class BaseMutator(abc.ABC):
         parent_chromosome: Chromosome,
         bottleneck: BottleneckProfile,
         target_dir: Optional[str] = None,
+        generation: Optional[int] = None,
+        parent_id: Optional[str] = None,
     ) -> Optional[Chromosome]:
         """Generates a candidate mutation from the parent chromosome."""
         pass

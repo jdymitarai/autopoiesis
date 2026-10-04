@@ -53,6 +53,7 @@ def cmd_evolve(args: argparse.Namespace) -> int:
         target_symbol=target_symbol,
         test_vectors=test_vectors,
         render_dashboard=not args.no_dashboard,
+        artifacts_dir=args.artifacts_dir,
     )
 
     evolved = organism.run_evolution(max_generations=max_gens)
@@ -114,6 +115,12 @@ def main() -> None:
         default=None,
         help="Path to export final lineage JSON",
     )
+    evolve_p.add_argument(
+        "--artifacts-dir",
+        type=str,
+        default=None,
+        help="Directory to store compiled shared libraries",
+    )
 
     # benchmark command
     bench_p = subparsers.add_parser("benchmark", help="Run benchmark suite")
@@ -121,6 +128,7 @@ def main() -> None:
     bench_p.add_argument("--generations", "-g", type=int, default=3)
     bench_p.add_argument("--no-dashboard", action="store_true")
     bench_p.add_argument("--json-out", type=str, default=None)
+    bench_p.add_argument("--artifacts-dir", type=str, default=None, help="Directory to store compiled shared libraries")
 
     args = parser.parse_args()
     if not args.command:

@@ -58,3 +58,25 @@ def broken(x):
     )
     assert res.success is False
     assert res.error_type == "ZeroDivisionError"
+
+
+def test_sandbox_segfault_quarantine():
+    """Verifies that hard memory crash / access violation is intercepted as SEGFAULT."""
+    sandbox = IsolatedProcessSandbox(default_timeout_seconds=5.0)
+    code = """
+import ctypes
+def crash_kernel(x):
+    ptr = ctypes.cast(1, ctypes.POINTER(ctypes.c_int))
+    return ptr.contents.value
+"""
+    test_inputs = [((1,), {})]
+    res = sandbox.execute_in_quarantine(
+        source_type="PYTHON_AST",
+        code=code,
+        entry_symbol="crash_kernel",
+        test_inputs=test_inputs,
+    )
+    assert res.success is False
+    assert res.segfault_detected is True
+    assert res.error_type == "SEGFAULT"
+

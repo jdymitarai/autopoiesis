@@ -32,10 +32,19 @@ class AtomicHotSwapper:
         mod_name = target_module.__name__ if hasattr(target_module, "__name__") else str(target_module)
         return f"{mod_name}::{symbol_name}"
 
-    def build_callable_from_chromosome(self, chromosome: Chromosome) -> Callable[..., Any]:
+    def build_callable_from_chromosome(
+        self,
+        chromosome: Chromosome,
+        module_dict: Optional[Dict[str, Any]] = None,
+    ) -> Callable[..., Any]:
         """Instantiates a live Python callable from a Chromosome specification."""
+        import math
+        base_env: Dict[str, Any] = {"math": math, "sys": sys, "os": os}
+        if module_dict:
+            base_env.update({k: v for k, v in module_dict.items() if not k.startswith("__")})
+
         if chromosome.source_type == SourceType.PYTHON_AST:
-            namespace: Dict[str, Any] = {}
+            namespace: Dict[str, Any] = dict(base_env)
             exec(chromosome.code, namespace)
             if chromosome.entry_symbol not in namespace:
                 raise KeyError(
@@ -53,7 +62,7 @@ class AtomicHotSwapper:
             cdll = ctypes.CDLL(chromosome.compiled_artifact_path)
             self._loaded_cdlls.append(cdll)
 
-            namespace: Dict[str, Any] = {"ctypes": ctypes, "lib": cdll}
+            namespace: Dict[str, Any] = {"ctypes": ctypes, "lib": cdll, "math": math}
             exec(chromosome.code, namespace)
 
             if chromosome.entry_symbol not in namespace:
@@ -76,7 +85,10 @@ class AtomicHotSwapper:
         Preserves rollback capability.
         """
         key = self._make_key(target_module, symbol_name)
-        new_callable = self.build_callable_from_chromosome(chromosome)
+        new_callable = self.build_callable_from_chromosome(
+            chromosome,
+            module_dict=getattr(target_module, "__dict__", None),
+        )
 
         with self._lock:
             # Preserve current implementation on history stack
