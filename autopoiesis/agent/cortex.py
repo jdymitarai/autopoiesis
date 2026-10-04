@@ -204,7 +204,8 @@ class StandaloneTransformerFallback:
                 "Reasoning completed under homeostatic constraints. System remains operational and resilient."
             )
 
-        # Truncate according to max_tokens
+        # Clamped according to max_tokens
+        max_tokens = max(1, int(max_tokens))
         words = text.split()
         if len(words) > max_tokens:
             words = words[:max_tokens]
@@ -291,7 +292,22 @@ class NeuralCortex:
                 except Exception:
                     pass
 
-        # 2. Try Hugging Face transformers if explicitly requested or if model weights exist locally
+        # 2. Try GGUF via ctransformers if requested or path provided
+        if self.backend_preference in ("auto", "ctransformers") and self.model_path:
+            if self.model_path.endswith(".gguf") and os.path.exists(self.model_path):
+                try:
+                    from ctransformers import AutoModelForCausalLM
+                    self._model_handle = AutoModelForCausalLM.from_pretrained(
+                        self.model_path,
+                        model_type="llama",
+                    )
+                    self.active_backend = "ctransformers"
+                    self.is_loaded = True
+                    return True
+                except Exception:
+                    pass
+
+        # 3. Try Hugging Face transformers if explicitly requested or if model weights exist locally
         has_local_weights = bool(self.model_path and os.path.exists(self.model_path)) or self._has_cached_weights()
         if (self.backend_preference == "transformers") or (self.backend_preference == "auto" and has_local_weights):
             try:
@@ -313,7 +329,7 @@ class NeuralCortex:
             except Exception:
                 pass
 
-        # 3. Resilient Standalone Fallback Transformer
+        # 4. Resilient Standalone Fallback Transformer
         self.active_backend = "fallback_transformer"
         self.is_loaded = True
         return True
@@ -329,6 +345,7 @@ class NeuralCortex:
         Generates cognitive thought tokens from prompt while tracking latency and throughput.
         """
         t0 = time.perf_counter()
+        max_tokens = max(1, int(max_tokens))
         clean_prompt = prompt.strip() if prompt else "Homeostasis check."
         prompt_tokens_len = len(clean_prompt.split())
 
@@ -344,7 +361,7 @@ class NeuralCortex:
                 with torch.no_grad():
                     outputs = self._model_handle.generate(
                         **inputs,
-                        max_new_tokens=max(1, max_tokens),
+                        max_new_tokens=max_tokens,
                         temperature=temperature,
                         do_sample=temperature > 0.0,
                         pad_token_id=self._tokenizer_handle.eos_token_id,
@@ -366,6 +383,13 @@ class NeuralCortex:
                 output_text = res["choices"][0]["text"].strip()
                 tokens_gen = res["usage"]["completion_tokens"]
                 prompt_tokens_len = res["usage"]["prompt_tokens"]
+            except Exception:
+                output_text, tokens_gen = self._fallback_engine.synthesize(clean_prompt, max_tokens=max_tokens)
+        elif self.active_backend == "ctransformers" and self._model_handle:
+            try:
+                res = self._model_handle(clean_prompt, max_new_tokens=max_tokens)
+                output_text = res.strip() if isinstance(res, str) else str(res).strip()
+                tokens_gen = len(output_text.split())
             except Exception:
                 output_text, tokens_gen = self._fallback_engine.synthesize(clean_prompt, max_tokens=max_tokens)
         else:
@@ -481,10 +505,12 @@ class NeuralCortex:
         """Creates a candidate payload dict from reflection insight."""
         clean_obs = re.sub(r"[^a-zA-Z0-9_\- ]", " ", obs_str).strip()
         short_title = clean_obs[:35] if clean_obs else "Defensive Cognition"
+        clean_obs_type = re.sub(r"[`\r\n]", " ", str(obs_type)).strip()[:30] or "observation"
+        clean_insight = " ".join(str(insight).strip().split())[:140]
 
         content = (
-            f"- **Cortex Defense ({short_title})**: When operating under `{obs_type[:30]}`:\n"
-            f"  - Cognitive Principle: {insight.strip()[:140]}"
+            f"- **Cortex Defense ({short_title})**: When operating under `{clean_obs_type}`:\n"
+            f"  - Cognitive Principle: {clean_insight}"
         )
         return {
             "target_type": "RULE",
@@ -492,7 +518,7 @@ class NeuralCortex:
             "mutation_type": "ADD_RULE",
             "title": f"Cortex Defensive Heuristic: {short_title}",
             "content": content,
-            "rationale": f"SmolLM2-135M cortex reflection on {obs_type}",
+            "rationale": f"SmolLM2-135M cortex reflection on {clean_obs_type}",
             "confidence": 0.88,
         }
 
@@ -538,6 +564,7 @@ class NeuralCortex:
             "parameters_count": self.parameter_count,
             "total_inferences": self.total_inferences,
             "total_tokens_generated": self.total_tokens_generated,
+            "total_latency_ms": round(self.total_latency_ms, 2),
             "average_latency_ms": self.average_latency_ms,
             "last_latency_ms": round(self.last_inference_latency_ms, 2),
             "last_tokens_per_second": self.last_tokens_per_second,
@@ -551,9 +578,12 @@ class NeuralCortex:
             return
         self.total_inferences = int(data.get("total_inferences", self.total_inferences))
         self.total_tokens_generated = int(data.get("total_tokens_generated", self.total_tokens_generated))
-        avg_lat = float(data.get("average_latency_ms", 0.0))
-        if avg_lat > 0 and self.total_inferences > 0:
-            self.total_latency_ms = avg_lat * self.total_inferences
+        if "total_latency_ms" in data:
+            self.total_latency_ms = float(data["total_latency_ms"])
+        else:
+            avg_lat = float(data.get("average_latency_ms", 0.0))
+            if avg_lat > 0 and self.total_inferences > 0:
+                self.total_latency_ms = avg_lat * self.total_inferences
         self.last_inference_latency_ms = float(data.get("last_latency_ms", self.last_inference_latency_ms))
         self.last_tokens_per_second = float(data.get("last_tokens_per_second", self.last_tokens_per_second))
 

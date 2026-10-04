@@ -1061,6 +1061,70 @@ class TestNeuralReflexSubsystem:
         assert "Chesterton" in c.content
         assert c.confidence == 0.92
 
+        # 3. Robust lowercase target_type parsing
+        lower_event = SessionEvent.create(
+            event_type=EventType.CORTEX_REFLECTION,
+            payload={
+                "insight": "Sub-millisecond inference must be guaranteed on CPU.",
+                "target_type": "rule",
+                "confidence": 0.85,
+            },
+        )
+        metabolism.ingest_event(lower_event)
+        cand_lower = metabolism.digest()
+        assert len(cand_lower) == 1
+        assert cand_lower[0].target_type == TargetType.RULE
+
+    def test_organism_cortex_rollback_without_snapshot_resets_metrics(self, mock_agent_workspace):
+        agents_dir, organism_dir = mock_agent_workspace
+        organism = AntigravityOrganism(agents_dir=agents_dir, organism_dir=organism_dir)
+
+        # Pulse to advance generation
+        rule_event = SessionEvent.create(
+            event_type=EventType.USER_FEEDBACK,
+            payload={
+                "category": "Defensive Architecture",
+                "rule": "Preserve deterministic state hash during rollback.",
+                "confidence": 0.95,
+            },
+        )
+        res = organism.pulse([rule_event])
+        assert res.success
+        assert res.generation_after == 1
+
+        # Simulate Gen 0 snapshot having no cortex_state.json
+        gen_0_cortex = organism_dir / "snapshots" / "gen_0" / "cortex_state.json"
+        if gen_0_cortex.exists():
+            gen_0_cortex.unlink()
+
+        # Generate some inferences in Gen 1
+        organism.cortex.think("Gen 1 inference pass", max_tokens=16)
+        assert organism.cortex.total_inferences >= 1
+
+        # Rollback to Gen 0
+        ok = organism.rollback(0)
+        assert ok
+        assert organism.lineage.active_generation == 0
+        # Cortex metrics reset cleanly
+        assert organism.cortex.total_inferences == 0
+
+    def test_cortex_guided_pulse_advances_generation(self, mock_agent_workspace):
+        agents_dir, organism_dir = mock_agent_workspace
+        organism = AntigravityOrganism(agents_dir=agents_dir, organism_dir=organism_dir)
+
+        # Ingest an operational error marked for cortex guidance
+        ev = SessionEvent.create(
+            event_type=EventType.ERROR_RECOVERY,
+            payload={
+                "error": "Memory pressure exceeded during attention projection",
+                "cortex_guided": True,
+            },
+        )
+        res = organism.pulse([ev])
+        assert res.success
+        assert res.generation_after == 1
+        assert res.mutations_applied == 1
+
 
 
 

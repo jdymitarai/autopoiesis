@@ -39,7 +39,7 @@ class TestNeuralCortex:
         assert cortex.model_id == "HuggingFaceTB/SmolLM2-135M"
         assert cortex.parameter_count == 134_516_736
         assert cortex.is_loaded is True
-        assert cortex.active_backend in ("fallback_transformer", "transformers", "llama_cpp")
+        assert cortex.active_backend in ("fallback_transformer", "transformers", "llama_cpp", "ctransformers")
         assert cortex.total_inferences == 0
         assert cortex.total_tokens_generated == 0
         assert cortex.average_latency_ms == 0.0
@@ -79,6 +79,14 @@ class TestNeuralCortex:
         # Boundary max_tokens = 1
         t_one = cortex.think("Single token test", max_tokens=1)
         assert t_one.tokens_generated == 1
+
+        # Boundary max_tokens = 0 and negative (clamped to >= 1)
+        t_zero = cortex.think("Zero token test", max_tokens=0)
+        assert t_zero.tokens_generated >= 1
+        assert not t_zero.text.startswith("...")
+
+        t_neg = cortex.think("Negative token test", max_tokens=-5)
+        assert t_neg.tokens_generated >= 1
 
         # Long prompt
         long_prompt = "operational context " * 200
@@ -209,6 +217,32 @@ class TestNeuralCortex:
         thought = cortex.think("Resilience verification under degraded environment.")
         assert len(thought.text) > 0
         assert thought.tokens_generated > 0
+
+    def test_cortex_ctransformers_backend_preference(self):
+        cortex = NeuralCortex(
+            backend_preference="ctransformers",
+            model_path="/non_existent/smollm2.gguf",
+        )
+        assert cortex.is_loaded is True
+        # Gracefully falls back to fallback_transformer when ctransformers package / path unavailable
+        assert cortex.active_backend == "fallback_transformer"
+        thought = cortex.think("Testing ctransformers fallback.")
+        assert len(thought.text) > 0
+
+    def test_cortex_reflect_sanitization_and_special_chars(self):
+        cortex = NeuralCortex()
+        # Observation containing markdown backticks, special symbols, and newlines
+        obs = {
+            "error": "SyntaxError in `eval('bad_code')`\nMultiple lines\r\nand quotes \" '",
+            "event_type": "SYNTAX_ERROR`INJECTION",
+        }
+        reflection = cortex.reflect(obs)
+        assert isinstance(reflection, CortexReflection)
+        cand = reflection.mutation_candidate
+        assert cand is not None
+        # Verify content has no unescaped rogue backticks or malformed linebreaks breaking markdown
+        assert "\r" not in cand["content"]
+        assert "SyntaxError in" in cand["content"] or "SYNTAX_ERROR" in cand["content"]
 
     def test_standalone_transformer_fallback_core(self):
         cfg = SmolLM2Config()

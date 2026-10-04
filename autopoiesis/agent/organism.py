@@ -739,6 +739,15 @@ class AntigravityOrganism:
                     self._save_cortex_state()
                 except Exception:
                     pass
+            elif self.cortex is not None:
+                try:
+                    if target_node and target_node.cortex_metadata:
+                        self.cortex.restore_status(target_node.cortex_metadata)
+                    else:
+                        self.cortex.reset_metrics()
+                    self._save_cortex_state()
+                except Exception:
+                    pass
 
             target_node.status = "ACTIVE"
             self.lineage.active_generation = target_generation

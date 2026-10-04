@@ -73,6 +73,9 @@ def main() -> None:
     cortex_p.add_argument("--dream", action="store_true", help="Run dream simulation for counterfactual synthesis")
     cortex_p.add_argument("--max-tokens", type=int, default=128, help="Maximum tokens to generate (default: 128)")
     cortex_p.add_argument("--benchmark", action="store_true", help="Benchmark cortex inference throughput and latency")
+    cortex_p.add_argument("--model-path", type=str, default=None, help="Path to local GGUF or model weights file")
+    cortex_p.add_argument("--backend", type=str, default="auto", choices=["auto", "fallback_transformer", "transformers", "llama_cpp", "ctransformers"], help="Inference backend preference")
+    cortex_p.add_argument("--stage", action="store_true", help="Stage generated reflection candidate into metabolism for next pulse")
 
     args = parser.parse_args()
 
@@ -181,7 +184,11 @@ def main() -> None:
 
     elif args.command == "cortex":
         cortex = getattr(organism, "cortex", None)
-        if cortex is None:
+        if (
+            cortex is None
+            or args.model_path
+            or (args.backend != "auto" and args.backend != getattr(cortex, "active_backend", ""))
+        ):
             try:
                 from .cortex import NeuralCortex
             except (ImportError, ValueError):
@@ -189,7 +196,11 @@ def main() -> None:
                     from organism.cortex import NeuralCortex
                 except ImportError:
                     from autopoiesis.agent.cortex import NeuralCortex
-            cortex = NeuralCortex()
+            cortex = NeuralCortex(
+                model_path=args.model_path,
+                backend_preference=args.backend,
+            )
+            organism.cortex = cortex
 
         if args.think:
             print("\n[SmolLM2-135M Neural Cortex: Thinking]")
@@ -211,6 +222,15 @@ def main() -> None:
                 print(f"  Mutation     : {cand.get('title')}")
                 print(f"  Target       : {cand.get('target_name')} ({cand.get('target_type')})")
                 print(f"  Rationale    : {cand.get('rationale')}")
+                if args.stage:
+                    organism.metabolism.ingest_event(
+                        SessionEvent.create(
+                            event_type=EventType.CORTEX_REFLECTION,
+                            payload=cand,
+                            source="cli_cortex_reflect",
+                        )
+                    )
+                    print("  [+] Enqueued cortex mutation candidate for next metabolic pulse.")
             if reflection.dream_simulation:
                 print(f"  Dream Sim    : {reflection.dream_simulation}")
             print(f"  Latency      : {reflection.latency_ms:.2f} ms")
@@ -236,6 +256,11 @@ def main() -> None:
             for k, v in status.items():
                 print(f"  {k:26}: {v}")
             print()
+
+        # Persist cumulative cortex state across CLI runs
+        if args.think or args.reflect or args.dream or args.benchmark:
+            if hasattr(organism, "_save_cortex_state"):
+                organism._save_cortex_state()
 
     elif args.command == "daemon":
         import time

@@ -277,7 +277,15 @@ class CognitiveMetabolism:
         insight = payload.get("insight") or payload.get("text") or ""
         target_name = payload.get("target_name", "Defensive Engineering & Surgical Changes Rule")
         target_type_val = payload.get("target_type", "RULE")
-        target_type = TargetType(target_type_val) if isinstance(target_type_val, str) else target_type_val
+        if isinstance(target_type_val, str):
+            try:
+                target_type = TargetType(target_type_val.upper())
+            except ValueError:
+                target_type = TargetType.RULE
+        elif isinstance(target_type_val, TargetType):
+            target_type = target_type_val
+        else:
+            target_type = TargetType.RULE
         title = payload.get("title", f"Cortex Cognitive Heuristic: {event.event_id}")
         confidence = float(payload.get("confidence", 0.88))
         content = payload.get("content") or f"- **Rule**: {insight.strip()}"
