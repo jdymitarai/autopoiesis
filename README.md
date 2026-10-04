@@ -5,7 +5,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-31%2F31%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-32%2F32%20passed-brightgreen.svg)]()
 [![Empirical Speedup](https://img.shields.io/badge/empirical%20speedup-14.02x-success.svg)]()
 
 ---
@@ -261,7 +261,8 @@ autopoiesis/
 │   │   ├── hotspot.py            # Execution profiler & AST complexity analyzer
 │   │   ├── hotswap.py            # Atomic in-memory hot-swapper with undo stack
 │   │   ├── organism.py           # Master organism evolutionary lifecycle orchestrator
-│   │   └── sandbox.py            # Subprocess quarantine sandbox (segfault barrier)
+│   │   ├── sandbox.py            # Subprocess quarantine sandbox (segfault barrier)
+│   │   └── security.py           # Zero-trust static AST and native syscall sanitizer
 │   ├── mutators/
 │   │   ├── __init__.py
 │   │   ├── ast_optimizer.py      # Python AST transforms & builtin caching
@@ -285,6 +286,8 @@ autopoiesis/
 │   └── run_colab_trial.py        # Colab empirical trial runner script
 ├── tests/                        # Comprehensive test suite (100% pass)
 ├── pyproject.toml                # Packaging & dependencies
+├── BREEDING.md                   # Global distributed breeding protocol guide
+├── SECURITY.md                   # Zero-trust security policy & threat model
 └── README.md                     # Architecture specification & documentation
 ```
 

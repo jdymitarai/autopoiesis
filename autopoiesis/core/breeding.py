@@ -150,6 +150,14 @@ def import_and_verify_genome_package(
     candidate.mutation_meta["breeder"] = breeder
     candidate.mutation_meta["imported_from"] = package_path
 
+    # Phase 0: Static Zero-Trust Security Audit
+    from autopoiesis.core.security import audit_chromosome_security
+    is_secure, violations = audit_chromosome_security(candidate)
+    if not is_secure:
+        violation_details = "; ".join(violations)
+        rejection_msg = f"SECURITY_VIOLATION: Candidate from {breeder} rejected: {violation_details}"
+        return False, None, 0.0, rejection_msg
+
     # Ensure native artifact exists locally or is recompiled
     if not _ensure_compiled_artifact(candidate, organism.artifacts_dir):
         return (

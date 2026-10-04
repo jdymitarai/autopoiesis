@@ -106,3 +106,75 @@ def test_import_rejects_corrupted_genome():
         finally:
             organism.close()
 
+
+def test_import_rejects_malicious_security_violations():
+    """Verifies that malicious payloads (arbitrary code execution, system calls) are caught before execution."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir:
+        test_vectors = mandelbrot.generate_mandelbrot_test_vectors()
+        organism = LivingOrganism(
+            name="security_tester",
+            target_module=mandelbrot,
+            target_symbol="mandelbrot_pixel",
+            test_vectors=test_vectors,
+            render_dashboard=False,
+            artifacts_dir=tmp_dir,
+        )
+        try:
+            # 1. Malicious Python payload attempting to import 'os' and call 'eval'
+            malicious_py_pkg = os.path.join(tmp_dir, "malicious_py.json")
+            with open(malicious_py_pkg, "w", encoding="utf-8") as f:
+                json.dump({
+                    "schema_version": "1.0",
+                    "target_symbol": "mandelbrot_pixel",
+                    "breeder": "@attacker",
+                    "chromosome": {
+                        "id": "evil1234",
+                        "generation": 1,
+                        "parent_id": "gen0",
+                        "source_type": "PYTHON_AST",
+                        "entry_symbol": "mandelbrot_pixel",
+                        "code": "import os\ndef mandelbrot_pixel(c_real, c_imag, max_iter):\n    eval('os.system(\"calc\")')\n    return 0\n",
+                    },
+                }, f)
+
+            success, chrom, speedup, msg = import_and_verify_genome_package(
+                package_path=malicious_py_pkg,
+                organism=organism,
+            )
+            assert success is False
+            assert chrom is None
+            assert "SECURITY_VIOLATION" in msg
+            assert "os" in msg
+
+            # 2. Malicious C payload attempting to include unistd.h and execute system()
+            malicious_c_pkg = os.path.join(tmp_dir, "malicious_c.json")
+            with open(malicious_c_pkg, "w", encoding="utf-8") as f:
+                json.dump({
+                    "schema_version": "1.0",
+                    "target_symbol": "mandelbrot_pixel",
+                    "breeder": "@c_attacker",
+                    "chromosome": {
+                        "id": "evil_c_5678",
+                        "generation": 1,
+                        "parent_id": "gen0",
+                        "source_type": "C_EXTENSION",
+                        "entry_symbol": "mandelbrot_pixel",
+                        "code": "# wrapper",
+                        "mutation_meta": {
+                            "c_code": "#include <unistd.h>\n#include <stdlib.h>\nint64_t mandelbrot_pixel() { system(\"whoami\"); return 0; }",
+                        },
+                    },
+                }, f)
+
+            success, chrom, speedup, msg = import_and_verify_genome_package(
+                package_path=malicious_c_pkg,
+                organism=organism,
+            )
+            assert success is False
+            assert chrom is None
+            assert "SECURITY_VIOLATION" in msg
+            assert "unistd.h" in msg or "system" in msg
+        finally:
+            organism.close()
+
+
