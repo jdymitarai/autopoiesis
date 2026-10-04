@@ -65,6 +65,15 @@ def main() -> None:
     reflex_p.add_argument("--benchmark", action="store_true", help="Run reflex benchmark (latency, memory, accuracy)")
     reflex_p.add_argument("--classify", type=str, default=None, help="Classify text using the reflex neural kernel")
 
+    # cortex
+    cortex_p = subparsers.add_parser("cortex", help="Cerebral Neural Cortex (SmolLM2-135M) operations")
+    cortex_p.add_argument("--status", action="store_true", help="Display neural cortex operational status")
+    cortex_p.add_argument("--think", type=str, default=None, help="Generate cognitive thoughts from prompt")
+    cortex_p.add_argument("--reflect", type=str, default=None, help="Reflect on an observation and generate mutation candidates")
+    cortex_p.add_argument("--dream", action="store_true", help="Run dream simulation for counterfactual synthesis")
+    cortex_p.add_argument("--max-tokens", type=int, default=128, help="Maximum tokens to generate (default: 128)")
+    cortex_p.add_argument("--benchmark", action="store_true", help="Benchmark cortex inference throughput and latency")
+
     args = parser.parse_args()
 
     organism = AntigravityOrganism()
@@ -168,6 +177,64 @@ def main() -> None:
             print(f"  Relevance Score              : {rel}")
             print(f"  Is Threat Detected           : {is_threat}")
             print(f"  Threat Score                 : {det['threat_score']}")
+            print()
+
+    elif args.command == "cortex":
+        cortex = getattr(organism, "cortex", None)
+        if cortex is None:
+            try:
+                from .cortex import NeuralCortex
+            except (ImportError, ValueError):
+                try:
+                    from organism.cortex import NeuralCortex
+                except ImportError:
+                    from autopoiesis.agent.cortex import NeuralCortex
+            cortex = NeuralCortex()
+
+        if args.think:
+            print("\n[SmolLM2-135M Neural Cortex: Thinking]")
+            print(f"  Prompt       : {args.think}")
+            thought = cortex.think(args.think, max_tokens=args.max_tokens)
+            print(f"  Thought      : {thought.text}")
+            print(f"  Latency      : {thought.latency_ms:.2f} ms")
+            print(f"  Tokens       : {thought.tokens_generated} tokens")
+            print(f"  Throughput   : {thought.tokens_per_second:.1f} tok/s")
+            print(f"  Backend      : {thought.backend} ({thought.model_id})\n")
+
+        elif args.reflect:
+            print("\n[SmolLM2-135M Neural Cortex: Reflection]")
+            print(f"  Observation  : {args.reflect}")
+            reflection = cortex.reflect(args.reflect)
+            print(f"  Insight      : {reflection.insight}")
+            if reflection.mutation_candidate:
+                cand = reflection.mutation_candidate
+                print(f"  Mutation     : {cand.get('title')}")
+                print(f"  Target       : {cand.get('target_name')} ({cand.get('target_type')})")
+                print(f"  Rationale    : {cand.get('rationale')}")
+            if reflection.dream_simulation:
+                print(f"  Dream Sim    : {reflection.dream_simulation}")
+            print(f"  Latency      : {reflection.latency_ms:.2f} ms")
+            print(f"  Confidence   : {reflection.confidence:.2f}\n")
+
+        elif args.dream:
+            print("\n[SmolLM2-135M Neural Cortex: Quiescent Dream Simulation]")
+            thought = cortex.dream()
+            print(f"  Simulation   : {thought.text}")
+            print(f"  Latency      : {thought.latency_ms:.2f} ms")
+            print(f"  Throughput   : {thought.tokens_per_second:.1f} tok/s\n")
+
+        elif args.benchmark:
+            print("\n[SmolLM2-135M Neural Cortex: Benchmark]")
+            harness = cortex.benchmark(iterations=5)
+            for k, v in harness.items():
+                print(f"  {k:26}: {v}")
+            print()
+
+        else:
+            status = cortex.get_status()
+            print("\n[Antigravity Neural Cortex Status (SmolLM2-135M)]")
+            for k, v in status.items():
+                print(f"  {k:26}: {v}")
             print()
 
     elif args.command == "daemon":

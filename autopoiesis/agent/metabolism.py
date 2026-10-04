@@ -25,6 +25,7 @@ class EventType(str, enum.Enum):
     PERFORMANCE_OBSERVATION = "PERFORMANCE_OBSERVATION"
     FORAGED_NUTRIENT = "FORAGED_NUTRIENT"
     NEURAL_REFLEX_MUTATION = "NEURAL_REFLEX_MUTATION"
+    CORTEX_REFLECTION = "CORTEX_REFLECTION"
 
 
 class TargetType(str, enum.Enum):
@@ -158,13 +159,29 @@ class CognitiveMetabolism:
     reusable procedural heuristics and skill candidates.
     """
 
-    def __init__(self, state_dir: Optional[Path] = None) -> None:
+    def __init__(self, state_dir: Optional[Path] = None, cortex: Optional[Any] = None) -> None:
         self.state_dir = Path(state_dir) if state_dir else None
+        self.cortex = cortex
         self.events: List[SessionEvent] = []
         self.digested_event_ids: set[str] = set()
         self.extracted_candidates: List[ProceduralMutationCandidate] = []
         if self.state_dir:
             self._load_state()
+
+    def generate_cortex_mutation(
+        self,
+        observation: Any,
+        min_confidence: float = 0.5,
+    ) -> Optional[ProceduralMutationCandidate]:
+        """Allow cortex-guided procedural mutation candidate generation."""
+        if not self.cortex:
+            return None
+        cand = self.cortex.generate_mutation_candidate(observation)
+        if cand and cand.confidence >= min_confidence:
+            self.extracted_candidates.append(cand)
+            self._persist_state()
+            return cand
+        return None
 
     def ingest_event(self, event: SessionEvent) -> None:
         """Ingest a single event into the metabolic pool."""
@@ -233,10 +250,49 @@ class CognitiveMetabolism:
                 new_candidates.append(cand)
                 self.digested_event_ids.add(ev.event_id)
 
+        # 6. Digest Cortex Cognitive Reflections
+        cortex_events = [e for e in pending if e.event_type == EventType.CORTEX_REFLECTION]
+        for ev in cortex_events:
+            cand = self._digest_cortex_reflection(ev)
+            if cand and cand.confidence >= min_confidence:
+                new_candidates.append(cand)
+                self.digested_event_ids.add(ev.event_id)
+
+        # 7. Digest cortex-guided events if cortex is available
+        if self.cortex is not None:
+            for ev in pending:
+                if ev.event_id not in self.digested_event_ids and ev.payload.get("cortex_guided"):
+                    cand = self.cortex.generate_mutation_candidate(ev.payload)
+                    if cand and cand.confidence >= min_confidence:
+                        new_candidates.append(cand)
+                        self.digested_event_ids.add(ev.event_id)
+
         # Record and persist
         self.extracted_candidates.extend(new_candidates)
         self._persist_state()
         return new_candidates
+
+    def _digest_cortex_reflection(self, event: SessionEvent) -> Optional[ProceduralMutationCandidate]:
+        payload = event.payload
+        insight = payload.get("insight") or payload.get("text") or ""
+        target_name = payload.get("target_name", "Defensive Engineering & Surgical Changes Rule")
+        target_type_val = payload.get("target_type", "RULE")
+        target_type = TargetType(target_type_val) if isinstance(target_type_val, str) else target_type_val
+        title = payload.get("title", f"Cortex Cognitive Heuristic: {event.event_id}")
+        confidence = float(payload.get("confidence", 0.88))
+        content = payload.get("content") or f"- **Rule**: {insight.strip()}"
+        rationale = payload.get("rationale") or f"Synthesized by SmolLM2-135M Neural Cortex from event {event.event_id}"
+
+        return ProceduralMutationCandidate.create(
+            target_type=target_type,
+            target_name=target_name,
+            mutation_type=payload.get("mutation_type", "ADD_RULE"),
+            title=title,
+            content=content,
+            rationale=rationale,
+            confidence=confidence,
+            source_events=[event.event_id],
+        )
 
     def _digest_reflex_mutation(self, event: SessionEvent) -> Optional[ProceduralMutationCandidate]:
         payload = event.payload

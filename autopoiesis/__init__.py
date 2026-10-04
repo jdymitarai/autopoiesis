@@ -5,7 +5,7 @@ Implements autonomous code autophagy, dual-buffer chromosomal sandboxing,
 deterministic apoptotic immune verification, and zero-downtime atomic hot-swapping.
 """
 
-__version__ = "0.1.5"
+__version__ = "0.1.6"
 __author__ = "Autopoiesis Research Team"
 
 from autopoiesis.core.organism import LivingOrganism

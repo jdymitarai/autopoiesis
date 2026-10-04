@@ -5,7 +5,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-105%2F105%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-119%2F119%20passed-brightgreen.svg)]()
 [![Empirical Speedup](https://img.shields.io/badge/empirical%20speedup-14.02x-success.svg)]()
 
 ---
@@ -301,6 +301,7 @@ Autopoiesis v0.1.4 extends AI agent metacognition with **autonomous exotrophic f
 ```
 
 ### Key Modules:
+- **`autopoiesis.agent.cortex`**: Cerebral Neural Cortex powered by **`SmolLM2-135M`** (134,516,736 parameters). Implements cognitive prompt thinking (`think`), self-reflection & procedural mutation candidate synthesis (`reflect`), quiescent counterfactual dream simulations (`dream`), and multi-backend support (`transformers`, `llama_cpp`, and zero-dependency standalone fallback engine for 100% offline resilience).
 - **`autopoiesis.agent.reflex`**: 1-Bit / 1.58-Bit Ternary Neural Reflex Kernel (`BitReflex`). Features discrete weights in `{-1, 0, +1}`, 2-bit packing mode (16 weights/uint32, < 10 KB memory footprint), multiplication-free integer forward pass, and discrete bit-flip genetic mutations.
 - **`autopoiesis.agent.foraging`**: Autonomous exotrophic perception engine scouting GitHub security advisories, bug bounty feeds, and official docs with zero-width sanitization and neural injection filtering.
 - **`autopoiesis.agent.metabolism`**: Digestion engine that processes session interactions and foraged nutrients into persistent procedural mutations.
@@ -318,11 +319,12 @@ autopoiesis/
 │   ├── __init__.py               # Top-level API exports
 │   ├── cli.py                    # Command-line interface (evolve, export-genome, import-genome)
 │   ├── mcp_server.py             # Universal Model Context Protocol (MCP) server
-│   ├── agent/                    # Cognitive Autopoiesis: Agent Self-Evolution (v0.1.5)
+│   ├── agent/                    # Cognitive Autopoiesis: Agent Self-Evolution (v0.1.6)
 │   │   ├── __init__.py
 │   │   ├── apoptotic_gate.py     # Cognitive immune gate & prompt validation
 │   │   ├── autophagy.py          # Dual-buffer rule & skill mutation engine
 │   │   ├── cli.py                # Agent heartbeat & daemon CLI (autopoiesis-agent)
+│   │   ├── cortex.py             # SmolLM2-135M Cerebral Neural Cortex (134.5M parameters)
 │   │   ├── foraging.py           # Autonomous exotrophic web perception & nutrient foraging
 │   │   ├── metabolism.py         # Session event digestion & mutation candidate generator
 │   │   ├── organism.py           # Generational lineage DAG & heartbeat orchestrator

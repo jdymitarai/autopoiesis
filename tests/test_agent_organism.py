@@ -10,6 +10,7 @@ Verifies:
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import sys
@@ -39,6 +40,7 @@ try:
         LineageDAG,
         OrganismHeartbeatResult,
     )
+    from autopoiesis.agent.cortex import NeuralCortex
 except ImportError:
     AGENTS_DIR = Path(__file__).resolve().parent.parent.parent / ".agents"
     if str(AGENTS_DIR) not in sys.path:
@@ -64,6 +66,7 @@ except ImportError:
         LineageDAG,
         OrganismHeartbeatResult,
     )
+    from organism.cortex import NeuralCortex
 
 
 @pytest.fixture
@@ -963,6 +966,101 @@ class TestNeuralReflexSubsystem:
         assert res_bad.mutations_applied == 0
         assert res_bad.mutations_rejected == 1
         assert res_bad.generation_after == 0
+
+    def test_organism_cortex_lifecycle_integration(self, mock_agent_workspace):
+        agents_dir, organism_dir = mock_agent_workspace
+        organism = AntigravityOrganism(agents_dir=agents_dir, organism_dir=organism_dir)
+
+        # Baseline Cortex state check
+        assert organism.cortex is not None
+        assert organism.cortex.is_loaded is True
+        assert organism.cortex.model_id == "HuggingFaceTB/SmolLM2-135M"
+        assert organism.cortex.parameter_count == 134_516_736
+
+        # Gen 0 lineage check
+        active_gen = organism.lineage.get_active()
+        assert active_gen is not None
+        assert active_gen.cortex_metadata is not None
+        assert active_gen.cortex_metadata["model_id"] == "HuggingFaceTB/SmolLM2-135M"
+        assert active_gen.cortex_metadata["parameters_count"] == 134_516_736
+
+        # Telemetry check
+        telemetry = organism.get_telemetry()
+        assert telemetry["cortex_active"] is True
+        assert telemetry["cortex_model"] == "HuggingFaceTB/SmolLM2-135M"
+        assert telemetry["cortex_parameters"] == 134_516_736
+        assert telemetry["cortex_inferences"] == 0
+
+        # Generate a thought to update metrics
+        thought = organism.cortex.think("Analyze phenotype stability.", max_tokens=32)
+        assert len(thought.text) > 0
+
+        telemetry_after = organism.get_telemetry()
+        assert telemetry_after["cortex_inferences"] == 1
+
+        # Pulse organism with an approved rule mutation to advance generation
+        rule_event = SessionEvent.create(
+            event_type=EventType.USER_FEEDBACK,
+            payload={
+                "category": "Defensive Architecture",
+                "rule": "Always preserve zero speculative overhead in neural cortex modules.",
+                "confidence": 0.95,
+            },
+        )
+        res = organism.pulse(events=[rule_event])
+        assert res.success
+        assert res.generation_after == 1
+
+        # Verify Gen 1 snapshot contains cortex_state.json
+        gen_1_snapshot = organism_dir / "snapshots" / "gen_1"
+        assert (gen_1_snapshot / "cortex_state.json").exists()
+        snap_data = json.loads((gen_1_snapshot / "cortex_state.json").read_text(encoding="utf-8"))
+        assert snap_data["model_id"] == "HuggingFaceTB/SmolLM2-135M"
+        assert snap_data["total_inferences"] >= 1
+
+        # Gen 1 node has cortex_metadata
+        gen_1_node = organism.lineage.generations.get(1)
+        assert gen_1_node is not None
+        assert gen_1_node.cortex_metadata is not None
+        assert gen_1_node.cortex_metadata["total_inferences"] >= 1
+
+        # Rollback restores Gen 0 phenotype and cortex state
+        ok = organism.rollback(target_generation=0)
+        assert ok
+        assert organism.lineage.active_generation == 0
+
+    def test_metabolism_cortex_reflection_and_guided_synthesis(self):
+        cortex = NeuralCortex()
+        metabolism = CognitiveMetabolism(cortex=cortex)
+
+        # 1. Direct cortex-guided mutation synthesis
+        cand = metabolism.generate_cortex_mutation("High memory consumption in neural forward pass")
+        assert cand is not None
+        assert isinstance(cand, ProceduralMutationCandidate)
+        assert cand.target_type == TargetType.RULE
+        assert cand.confidence >= 0.5
+        assert cand in metabolism.extracted_candidates
+
+        # 2. Ingest and digest CORTEX_REFLECTION event
+        reflection_event = SessionEvent.create(
+            event_type=EventType.CORTEX_REFLECTION,
+            payload={
+                "insight": "Chesterton's fence requires documenting intentional invariant before code removal.",
+                "title": "Cortex Architectural Rule",
+                "confidence": 0.92,
+                "target_type": "RULE",
+                "target_name": "Defensive Engineering & Surgical Changes Rule",
+                "mutation_type": "ADD_RULE",
+            },
+        )
+        metabolism.ingest_event(reflection_event)
+        candidates = metabolism.digest()
+        assert len(candidates) == 1
+        c = candidates[0]
+        assert c.target_type == TargetType.RULE
+        assert "Chesterton" in c.content
+        assert c.confidence == 0.92
+
 
 
 

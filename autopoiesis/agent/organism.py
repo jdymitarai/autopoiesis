@@ -14,13 +14,14 @@ import hashlib
 import json
 import shutil
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 try:
     from .apoptotic_gate import ApoptoticVerdict, CognitiveApoptoticGate
     from .autophagy import MutationType, SkillRuleAutophagy, StagedMutation
+    from .cortex import NeuralCortex
     from .foraging import CognitiveForagingEngine, ForagingPolicy, Nutrient
     from .metabolism import (
         CognitiveMetabolism,
@@ -33,6 +34,7 @@ except (ImportError, ValueError):
     try:
         from organism.apoptotic_gate import ApoptoticVerdict, CognitiveApoptoticGate
         from organism.autophagy import MutationType, SkillRuleAutophagy, StagedMutation
+        from organism.cortex import NeuralCortex
         from organism.foraging import CognitiveForagingEngine, ForagingPolicy, Nutrient
         from organism.metabolism import (
             CognitiveMetabolism,
@@ -44,6 +46,7 @@ except (ImportError, ValueError):
     except (ImportError, ValueError):
         from autopoiesis.agent.apoptotic_gate import ApoptoticVerdict, CognitiveApoptoticGate
         from autopoiesis.agent.autophagy import MutationType, SkillRuleAutophagy, StagedMutation
+        from autopoiesis.agent.cortex import NeuralCortex
         from autopoiesis.agent.foraging import CognitiveForagingEngine, ForagingPolicy, Nutrient
         from autopoiesis.agent.metabolism import (
             CognitiveMetabolism,
@@ -66,13 +69,15 @@ class GenerationNode:
     snapshot_path: Optional[str] = None
     status: str = "ACTIVE"  # ACTIVE, VIABLE, ROLLED_BACK, APOPTOTIC
     reflex_metadata: Optional[Dict[str, Any]] = None
+    cortex_metadata: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> GenerationNode:
-        return cls(**data)
+        valid_keys = {f.name for f in fields(cls)}
+        return cls(**{k: v for k, v in data.items() if k in valid_keys})
 
 
 @dataclass
@@ -180,13 +185,21 @@ class AntigravityOrganism:
         self.snapshots_dir = self.organism_dir / "snapshots"
         self.lineage_file = self.organism_dir / "lineage.json"
         self.reflex_file = self.organism_dir / "reflex_state.json"
+        self.cortex_file = self.organism_dir / "cortex_state.json"
 
         # Initialize Neural Reflex Subsystem
         self.reflex: Optional[Any] = None
         self._load_or_init_reflex()
 
+        # Initialize Cerebral Neural Cortex (SmolLM2-135M)
+        self.cortex: Optional[Any] = None
+        self._load_or_init_cortex()
+
         # Initialize subsystems
-        self.metabolism = CognitiveMetabolism(state_dir=self.organism_dir / "metabolism")
+        self.metabolism = CognitiveMetabolism(
+            state_dir=self.organism_dir / "metabolism",
+            cortex=self.cortex,
+        )
         self.autophagy = SkillRuleAutophagy(agents_dir=self.agents_dir)
         self.apoptotic_gate = CognitiveApoptoticGate()
         self.foraging = CognitiveForagingEngine(
@@ -200,6 +213,36 @@ class AntigravityOrganism:
 
         # Load or bootstrap
         self._load_or_bootstrap()
+
+    def _load_or_init_cortex(self) -> None:
+        try:
+            from .cortex import NeuralCortex
+        except (ImportError, ValueError):
+            try:
+                from organism.cortex import NeuralCortex
+            except ImportError:
+                from autopoiesis.agent.cortex import NeuralCortex
+
+        try:
+            self.cortex = NeuralCortex()
+            if self.cortex_file.exists():
+                try:
+                    data = json.loads(self.cortex_file.read_text(encoding="utf-8"))
+                    self.cortex.restore_status(data)
+                except Exception:
+                    pass
+            else:
+                self._save_cortex_state()
+        except Exception:
+            self.cortex = None
+
+    def _save_cortex_state(self) -> None:
+        if self.cortex is not None:
+            self.organism_dir.mkdir(parents=True, exist_ok=True)
+            self.cortex_file.write_text(
+                json.dumps(self.cortex.get_status(), indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
 
     def _load_or_init_reflex(self) -> None:
         try:
@@ -250,6 +293,7 @@ class AntigravityOrganism:
             "weights_count": self.reflex.total_weights if self.reflex else 0,
             "memory_footprint_bytes": self.reflex.get_memory_footprint() if self.reflex else 0,
         }
+        cortex_meta = self.cortex.get_status() if self.cortex else None
 
         gen_0 = GenerationNode(
             generation=0,
@@ -261,6 +305,7 @@ class AntigravityOrganism:
             snapshot_path=str(snapshot_dir),
             status="ACTIVE",
             reflex_metadata=reflex_meta,
+            cortex_metadata=cortex_meta,
         )
         self.lineage.add_node(gen_0, set_active=True)
         self._persist_lineage()
@@ -540,6 +585,7 @@ class AntigravityOrganism:
                 "weights_count": self.reflex.total_weights if self.reflex else 0,
                 "memory_footprint_bytes": self.reflex.get_memory_footprint() if self.reflex else 0,
             }
+            cortex_meta = self.cortex.get_status() if self.cortex else None
 
             new_node = GenerationNode(
                 generation=next_gen,
@@ -551,6 +597,7 @@ class AntigravityOrganism:
                 snapshot_path=str(snapshot_dir),
                 status="ACTIVE",
                 reflex_metadata=reflex_meta,
+                cortex_metadata=cortex_meta,
             )
             self.lineage.add_node(new_node, set_active=True)
             self._persist_lineage()
@@ -683,6 +730,16 @@ class AntigravityOrganism:
                 except Exception:
                     pass
 
+            # Restore cortex state if present in snapshot
+            snap_cortex = snapshot_dir / "cortex_state.json"
+            if snap_cortex.exists() and self.cortex is not None:
+                try:
+                    cortex_data = json.loads(snap_cortex.read_text(encoding="utf-8"))
+                    self.cortex.restore_status(cortex_data)
+                    self._save_cortex_state()
+                except Exception:
+                    pass
+
             target_node.status = "ACTIVE"
             self.lineage.active_generation = target_generation
             self._persist_lineage()
@@ -738,6 +795,12 @@ class AntigravityOrganism:
             "reflex_active": bool(self.reflex),
             "reflex_weights_count": self.reflex.total_weights if self.reflex else 0,
             "reflex_memory_bytes": self.reflex.get_memory_footprint() if self.reflex else 0,
+            "cortex_active": bool(self.cortex and self.cortex.is_loaded),
+            "cortex_model": self.cortex.model_id if self.cortex else "",
+            "cortex_backend": self.cortex.active_backend if self.cortex else "",
+            "cortex_parameters": self.cortex.parameter_count if self.cortex else 0,
+            "cortex_inferences": self.cortex.total_inferences if self.cortex else 0,
+            "cortex_avg_latency_ms": self.cortex.average_latency_ms if self.cortex else 0.0,
         }
 
     def render_lineage_ascii(self) -> str:
@@ -777,6 +840,16 @@ class AntigravityOrganism:
         if self.reflex is not None:
             try:
                 self.reflex.save_json(target_dir / "reflex_state.json")
+            except Exception:
+                pass
+
+        # Snapshot cortex state
+        if self.cortex is not None:
+            try:
+                (target_dir / "cortex_state.json").write_text(
+                    json.dumps(self.cortex.get_status(), indent=2, ensure_ascii=False),
+                    encoding="utf-8",
+                )
             except Exception:
                 pass
 
